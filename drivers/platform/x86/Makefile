@@ -71,6 +71,7 @@ obj-$(CONFIG_THINKPAD_LMI)	+= think-lmi.o
 
 # Intel
 obj-y				+= intel/
+obj-$(CONFIG_INTEL_PSTORE_PRAM)		+= intel_pstore_pram.o
 
 # MSI
 obj-$(CONFIG_MSI_LAPTOP)	+= msi-laptop.o
