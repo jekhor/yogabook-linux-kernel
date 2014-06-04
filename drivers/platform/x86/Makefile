@@ -69,6 +69,7 @@ obj-$(CONFIG_YOGABOOK)		+= lenovo-yogabook.o
 
 # Intel
 obj-y				+= intel/
+obj-$(CONFIG_INTEL_PSTORE_PRAM)		+= intel_pstore_pram.o
 
 # MSI
 obj-$(CONFIG_MSI_EC)		+= msi-ec.o
