@@ -73,6 +73,7 @@ obj-y				+= lenovo/
 
 # Intel
 obj-y				+= intel/
+obj-$(CONFIG_INTEL_PSTORE_PRAM)		+= intel_pstore_pram.o
 
 # Microsoft
 obj-$(CONFIG_ACPI_QUICKSTART)  += quickstart.o
