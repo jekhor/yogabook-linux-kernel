@@ -280,6 +280,19 @@ static const struct property_entry bq24190_props[] = {
 	{ }
 };
 
+static const struct property_entry bq24192_props[] = {
+	PROPERTY_ENTRY_U32("ti,charge-current", 500000),
+	PROPERTY_ENTRY_U32("ti,battery-regulation-voltage", 4208000),
+	PROPERTY_ENTRY_U32("ti,termination-current", 256000),
+	PROPERTY_ENTRY_U32("ti,precharge-current", 128000),
+	PROPERTY_ENTRY_U32("ti,minimum-sys-voltage", 3500000),
+	PROPERTY_ENTRY_U32("ti,boost-voltage", 4998000),
+	PROPERTY_ENTRY_U32("ti,boost-max-current", 1400000),
+	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
+//	PROPERTY_ENTRY_BOOL("disable-reset"),
+	{}
+};
+
 static struct regulator_consumer_supply fusb302_consumer = {
 	.supply = "vbus",
 	/* Must match fusb302 dev_name in intel_cht_int33fe.c */
@@ -305,11 +318,11 @@ static int cht_wc_i2c_adap_i2c_probe(struct platform_device *pdev)
 	struct intel_soc_pmic *pmic = dev_get_drvdata(pdev->dev.parent);
 	struct cht_wc_i2c_adap *adap;
 	struct i2c_board_info board_info = {
-		.type = "bq24190",
+		.type = "bq25892",
 		.addr = 0x6b,
-		.dev_name = "bq24190",
-		.properties = bq24190_props,
-		.platform_data = &bq24190_pdata,
+		.dev_name = "bq25892",
+		.properties = bq24192_props,
+//		.platform_data = &bq24190_pdata,
 	};
 	int ret, reg, irq;
 
