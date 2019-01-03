@@ -269,7 +269,7 @@ static const struct irq_chip cht_wc_i2c_irq_chip = {
 	.irq_enable		= cht_wc_i2c_irq_enable,
 	.name			= "cht_wc_ext_chrg_irq_chip",
 };
-
+/*
 static const char * const bq24190_suppliers[] = {
 	"tcpm-source-psy-i2c-fusb302" };
 
@@ -282,6 +282,25 @@ static const struct property_entry bq24190_props[] = {
 
 static const struct software_node bq24190_node = {
 	.properties = bq24190_props,
+};
+*/
+
+static const struct property_entry bq25892_props[] = {
+	PROPERTY_ENTRY_U32("ti,charge-current", 4224000),
+	PROPERTY_ENTRY_U32("ti,battery-regulation-voltage", 4352000),
+	PROPERTY_ENTRY_U32("ti,termination-current", 256000),
+	PROPERTY_ENTRY_U32("ti,precharge-current", 128000),
+	PROPERTY_ENTRY_U32("ti,minimum-sys-voltage", 3500000),
+	PROPERTY_ENTRY_U32("ti,boost-voltage", 4998000),
+	PROPERTY_ENTRY_U32("ti,boost-max-current", 1400000),
+	PROPERTY_ENTRY_U32("ti,input-max-current", 1950000),
+//	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
+	PROPERTY_ENTRY_BOOL("disable-reset"),
+	{}
+};
+
+static const struct software_node bq25892_node = {
+	.properties = bq25892_props,
 };
 
 static struct regulator_consumer_supply fusb302_consumer = {
@@ -299,21 +318,20 @@ static const struct regulator_init_data bq24190_vbus_init_data = {
 	.consumer_supplies = &fusb302_consumer,
 	.num_consumer_supplies = 1,
 };
-
+/*
 static struct bq24190_platform_data bq24190_pdata = {
 	.regulator_init_data = &bq24190_vbus_init_data,
 };
-
+*/
 static int cht_wc_i2c_adap_i2c_probe(struct platform_device *pdev)
 {
 	struct intel_soc_pmic *pmic = dev_get_drvdata(pdev->dev.parent);
 	struct cht_wc_i2c_adap *adap;
 	struct i2c_board_info board_info = {
-		.type = "bq24190",
+		.type = "bq25892",
 		.addr = 0x6b,
-		.dev_name = "bq24190",
-		.swnode = &bq24190_node,
-		.platform_data = &bq24190_pdata,
+		.dev_name = "bq25892",
+		.swnode = &bq25892_node,
 	};
 	int ret, reg, irq;
 
