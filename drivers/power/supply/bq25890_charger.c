@@ -22,7 +22,10 @@
 #define BQ25890_IRQ_PIN			"bq25890_irq"
 
 #define BQ25890_ID			3
+#define BQ25892_ID			5
 #define BQ25896_ID			0
+
+static int noreset = 0;
 
 enum bq25890_fields {
 	F_EN_HIZ, F_EN_ILIM, F_IILIM,				     /* Reg00 */
@@ -392,6 +395,8 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		if (bq->chip_id == BQ25890_ID)
 			val->strval = "BQ25890";
+		else if (bq->chip_id == BQ25892_ID)
+			val->strval = "BQ25892";
 		else if (bq->chip_id == BQ25896_ID)
 			val->strval = "BQ25896";
 		else
@@ -614,10 +619,16 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_TREG,	 bq->init_data.treg}
 	};
 
-	ret = bq25890_chip_reset(bq);
-	if (ret < 0) {
-		dev_dbg(bq->dev, "Reset failed %d\n", ret);
-		return ret;
+	/* Don't reset chip at driver initialization if property 'disable-reset'
+	 * is passed by platform code */
+	if (!device_property_read_bool(bq->dev, "disable-reset") && !noreset) {
+		ret = bq25890_chip_reset(bq);
+		if (ret < 0) {
+			dev_dbg(bq->dev, "Reset failed %d\n", ret);
+			return ret;
+		}
+	} else {
+		dev_dbg(bq->dev, "Reset disabled\n");
 	}
 
 	/* disable watchdog */
@@ -862,7 +873,8 @@ static int bq25890_probe(struct i2c_client *client,
 		return bq->chip_id;
 	}
 
-	if ((bq->chip_id != BQ25890_ID) && (bq->chip_id != BQ25896_ID)) {
+	if ((bq->chip_id != BQ25890_ID) && (bq->chip_id != BQ25896_ID)
+			&& (bq->chip_id != BQ25892_ID)) {
 		dev_err(dev, "Chip with ID=%d, not supported!\n", bq->chip_id);
 		return -ENODEV;
 	}
@@ -930,8 +942,10 @@ static int bq25890_remove(struct i2c_client *client)
 	if (!IS_ERR_OR_NULL(bq->usb_phy))
 		usb_unregister_notifier(bq->usb_phy, &bq->usb_nb);
 
-	/* reset all registers to default values */
-	bq25890_chip_reset(bq);
+	if (!device_property_read_bool(bq->dev, "disable-reset") && !noreset) {
+		/* reset all registers to default values */
+		bq25890_chip_reset(bq);
+	}
 
 	return 0;
 }
@@ -982,6 +996,7 @@ static const struct dev_pm_ops bq25890_pm = {
 
 static const struct i2c_device_id bq25890_i2c_ids[] = {
 	{ "bq25890", 0 },
+	{ "bq25892", 0 },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, bq25890_i2c_ids);
@@ -1010,6 +1025,9 @@ static struct i2c_driver bq25890_driver = {
 	.id_table = bq25890_i2c_ids,
 };
 module_i2c_driver(bq25890_driver);
+
+module_param(noreset, int, S_IRUGO);
+MODULE_PARM_DESC(noreset, "Don't reset charger at init");
 
 MODULE_AUTHOR("Laurentiu Palcu <laurentiu.palcu@intel.com>");
 MODULE_DESCRIPTION("bq25890 charger driver");
