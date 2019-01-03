@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
+#include <linux/dmi.h>
 
 #define EXPECTED_PTYPE		4
 
@@ -97,6 +98,7 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 	acpi_status status;
 	int fusb302_irq;
 	int ret;
+	const char *product_name;
 
 	status = acpi_evaluate_integer(ACPI_HANDLE(dev), "PTYP", NULL, &ptyp);
 	if (ACPI_FAILURE(status)) {
@@ -117,6 +119,16 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 			EXPECTED_PTYPE);
 		return -ENODEV;
 	}
+
+	/* Lenovo Yoga Book has INT33FE device in DSDT table but this device doesn't
+	 * have FUSB302, max17047 and pi3usb30532 definitions. Disable the driver
+	 * for this notebook until its ACPI methods will be needed */
+	product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
+	if (product_name && !strcmp(product_name, "Lenovo YB1-X91L")) {
+		dev_info(dev, "Lenovo Yoga Book detected, don't use this driver for it\n");
+		return -ENODEV;
+	}
+
 
 	/*
 	 * We expect the WC PMIC to be paired with a TI bq24292i charger-IC.
