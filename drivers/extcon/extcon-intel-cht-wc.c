@@ -29,7 +29,16 @@
 #define CHT_WC_CHGRCTRL0_DBPOFF		BIT(6)
 #define CHT_WC_CHGRCTRL0_CHR_WDT_NOKICK	BIT(7)
 
-#define CHT_WC_CHGRCTRL1		0x5e17
+#define CHT_WC_CHGRCTRL1			0x5e17
+#define CHT_WC_CHGRCTRL1_DBPEN_MASK		BIT(7)
+#define CHT_WC_CHGRCTRL1_OTGMODE		BIT(6)
+#define CHT_WC_CHGRCTRL1_FTEMP_EVENT		BIT(5)
+#define CHT_WC_CHGRCTRL1_FUSB_INLMT_1500	BIT(4)
+#define CHT_WC_CHGRCTRL1_FUSB_INLMT_900		BIT(3)
+#define CHT_WC_CHGRCTRL1_FUSB_INLMT_500		BIT(2)
+#define CHT_WC_CHGRCTRL1_FUSB_INLMT_150		BIT(1)
+#define CHT_WC_CHGRCTRL1_FUSB_INLMT_100		BIT(0)
+
 
 #define CHT_WC_USBSRC			0x5e29
 #define CHT_WC_USBSRC_STS_MASK		GENMASK(1, 0)
@@ -149,6 +158,7 @@ static int cht_wc_extcon_get_charger(struct cht_wc_extcon_data *ext,
 		return EXTCON_CHG_USB_SDP; /* Save fallback */
 	}
 
+	dev_dbg(ext->dev, "USBSRC reg = 0x%02x\n", usbsrc);
 	usbsrc = (usbsrc & CHT_WC_USBSRC_TYPE_MASK) >> CHT_WC_USBSRC_TYPE_SHIFT;
 	switch (usbsrc) {
 	default:
@@ -198,6 +208,28 @@ static void cht_wc_extcon_set_5v_boost(struct cht_wc_extcon_data *ext,
 		dev_err(ext->dev, "Error writing Vbus GPIO CTLO: %d\n", ret);
 }
 
+static void cht_wc_extcon_set_otgmode(struct cht_wc_extcon_data *ext, bool enable)
+{
+	unsigned int chgrctrl1;
+	int ret;
+
+	ret = regmap_read(ext->regmap, CHT_WC_CHGRCTRL1, &chgrctrl1);
+	if (ret) {
+		dev_err(ext->dev, "Error reading CHGRCTRL1 reg: %d\n", ret);
+		return;
+	}
+
+	if (enable)
+		chgrctrl1 |= CHT_WC_CHGRCTRL1_OTGMODE;
+	else
+		chgrctrl1 &= ~(CHT_WC_CHGRCTRL1_OTGMODE);
+
+	dev_dbg(ext->dev, "Writing CHGRCTRL1: 0x%02x\n", chgrctrl1);
+	ret = regmap_write(ext->regmap, CHT_WC_CHGRCTRL1, chgrctrl1);
+	if (ret)
+		dev_err(ext->dev, "Error writing CHGRCTRL1 OTG mode bit: %d\n", ret);
+}
+
 /* Small helper to sync EXTCON_CHG_USB_SDP and EXTCON_USB state */
 static void cht_wc_extcon_set_state(struct cht_wc_extcon_data *ext,
 				    unsigned int cable, bool state)
@@ -221,10 +253,17 @@ static void cht_wc_extcon_pwrsrc_event(struct cht_wc_extcon_data *ext)
 	}
 
 	id = cht_wc_extcon_get_id(ext, pwrsrc_sts);
+	dev_dbg(ext->dev, "USB ID=%d, PWRSRC_STS=0x%08x\n",
+			id, pwrsrc_sts);
+
 	if (id == USB_ID_GND) {
+		cht_wc_extcon_set_otgmode(ext, true);
+
 		/* The 5v boost causes a false VBUS / SDP detect, skip */
 		goto charger_det_done;
 	}
+
+	cht_wc_extcon_set_otgmode(ext, false);
 
 	/* Plugged into a host/charger or not connected? */
 	if (!(pwrsrc_sts & CHT_WC_PWRSRC_VBUS)) {
@@ -236,6 +275,8 @@ static void cht_wc_extcon_pwrsrc_event(struct cht_wc_extcon_data *ext)
 	ret = cht_wc_extcon_get_charger(ext, ignore_get_charger_errors);
 	if (ret >= 0)
 		cable = ret;
+
+	dev_dbg(ext->dev, "charger detection result  = %d\n", ret);
 
 charger_det_done:
 	/* Route D+ and D- to SoC for the host or gadget controller */
