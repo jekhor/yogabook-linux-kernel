@@ -18,6 +18,7 @@
  */
 
 #include <linux/acpi.h>
+#include <linux/dmi.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -29,7 +30,7 @@
 #define EXPECTED_PTYPE		4
 
 struct cht_int33fe_data {
-	struct i2c_client *max17047;
+	struct i2c_client *battery_fg;
 	struct i2c_client *fusb302;
 	struct i2c_client *pi3usb30532;
 	/* Contain a list-head must be per device */
@@ -79,12 +80,29 @@ static const struct property_entry max17047_props[] = {
 	{ }
 };
 
+static const char * const bq27xxx_suppliers[] = { "bq25890-charger" };
+static const struct property_entry bq27xxx_props[] = {
+	PROPERTY_ENTRY_STRING_ARRAY("supplied-from", bq27xxx_suppliers),
+	{ }
+};
+
 static const struct property_entry fusb302_props[] = {
 	PROPERTY_ENTRY_STRING("linux,extcon-name", "cht_wcove_pwrsrc"),
 	PROPERTY_ENTRY_U32("fcs,max-sink-microvolt", 12000000),
 	PROPERTY_ENTRY_U32("fcs,max-sink-microamp",   3000000),
 	PROPERTY_ENTRY_U32("fcs,max-sink-microwatt", 36000000),
 	{ }
+};
+
+static const struct dmi_system_id yogabook_ids[] = {
+	{
+		.ident = "Lenovo Yogabook",
+		/* YB1-X91L/F and YB1-X90L/F */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9")
+		}
+	},
+	{}
 };
 
 static int cht_int33fe_probe(struct platform_device *pdev)
@@ -120,15 +138,27 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* Lenovo Yoga Book has INT33FE device in DSDT table but this device doesn't
-	 * have FUSB302, max17047 and pi3usb30532 definitions. Disable the driver
-	 * for this notebook until its ACPI methods will be needed */
-	product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
-	if (product_name && !strcmp(product_name, "Lenovo YB1-X91L")) {
-		dev_info(dev, "Lenovo Yoga Book detected, don't use this driver for it\n");
-		return -ENODEV;
-	}
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
 
+	/*
+	 * Lenovo Yoga Book has INT33FE device in DSDT table but this device
+	 * doesn't have FUSB302, max17047 and pi3usb30532 definitions but has
+	 * a bq27542 battery gauge.
+	 */
+	if (dmi_check_system(yogabook_ids)) {
+		dev_info(dev,
+			"Lenovo Yoga Book, register only BQ27542 battery Fuel Gauge\n");
+
+		memset(&board_info, 0, sizeof(board_info));
+		strlcpy(board_info.type, "bq27542", I2C_NAME_SIZE);
+		board_info.dev_name = "bq27542";
+		board_info.properties = bq27xxx_props;
+		data->battery_fg = i2c_acpi_new_device(dev, 1, &board_info);
+
+		goto done;
+	}
 
 	/*
 	 * We expect the WC PMIC to be paired with a TI bq24292i charger-IC.
@@ -159,10 +189,6 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		return fusb302_irq;
 	}
 
-	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
-
 	/* Work around BIOS bug, see comment on cht_int33fe_find_max17047 */
 	max17047 = cht_int33fe_find_max17047();
 	if (max17047) {
@@ -179,9 +205,9 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		strlcpy(board_info.type, "max17047", I2C_NAME_SIZE);
 		board_info.dev_name = "max17047";
 		board_info.properties = max17047_props;
-		data->max17047 = i2c_acpi_new_device(dev, 1, &board_info);
-		if (IS_ERR(data->max17047))
-			return PTR_ERR(data->max17047);
+		data->battery_fg = i2c_acpi_new_device(dev, 1, &board_info);
+		if (IS_ERR(data->battery_fg))
+			return PTR_ERR(data->battery_fg);
 	}
 
 	data->connections[0].endpoint[0] = "port0";
@@ -218,6 +244,7 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		goto out_unregister_fusb302;
 	}
 
+done:
 	platform_set_drvdata(pdev, data);
 
 	return 0;
@@ -226,7 +253,7 @@ out_unregister_fusb302:
 	i2c_unregister_device(data->fusb302);
 
 out_unregister_max17047:
-	i2c_unregister_device(data->max17047);
+	i2c_unregister_device(data->battery_fg);
 
 	device_connections_remove(data->connections);
 
@@ -239,7 +266,7 @@ static int cht_int33fe_remove(struct platform_device *pdev)
 
 	i2c_unregister_device(data->pi3usb30532);
 	i2c_unregister_device(data->fusb302);
-	i2c_unregister_device(data->max17047);
+	i2c_unregister_device(data->battery_fg);
 
 	device_connections_remove(data->connections);
 
