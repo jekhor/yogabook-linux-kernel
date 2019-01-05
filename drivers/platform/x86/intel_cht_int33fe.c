@@ -29,7 +29,7 @@
 #define EXPECTED_PTYPE		4
 
 struct cht_int33fe_data {
-	struct i2c_client *max17047;
+	struct i2c_client *battery_fg;
 	struct i2c_client *fusb302;
 	struct i2c_client *pi3usb30532;
 	/* Contain a list-head must be per device */
@@ -79,6 +79,12 @@ static const struct property_entry max17047_props[] = {
 	{ }
 };
 
+static const char * const bq27xxx_suppliers[] = { "bq25890-charger" };
+static const struct property_entry bq27xxx_props[] = {
+	PROPERTY_ENTRY_STRING_ARRAY("supplied-from", bq27xxx_suppliers),
+	{ }
+};
+
 static const struct property_entry fusb302_props[] = {
 	PROPERTY_ENTRY_STRING("fcs,extcon-name", "cht_wcove_pwrsrc"),
 	PROPERTY_ENTRY_U32("fcs,max-sink-microvolt", 12000000),
@@ -120,13 +126,25 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
 	/* Lenovo Yoga Book has INT33FE device in DSDT table but this device doesn't
 	 * have FUSB302, max17047 and pi3usb30532 definitions. Disable the driver
 	 * for this notebook until its ACPI methods will be needed */
 	product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
 	if (product_name && !strcmp(product_name, "Lenovo YB1-X91L")) {
-		dev_info(dev, "Lenovo Yoga Book detected, don't use this driver for it\n");
-		return -ENODEV;
+		dev_info(dev, "Lenovo Yoga Book detected, register only "
+				"BQ27542 battery Fuel Gauge for it\n");
+
+		memset(&board_info, 0, sizeof(board_info));
+		strlcpy(board_info.type, "bq27542", I2C_NAME_SIZE);
+		board_info.dev_name = "bq27542";
+		board_info.properties = bq27xxx_props;
+		data->battery_fg = i2c_acpi_new_device(dev, 1, &board_info);
+
+		goto done;
 	}
 
 
@@ -154,14 +172,12 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 	/* The FUSB302 uses the irq at index 1 and is the only irq user */
 	fusb302_irq = acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 1);
 	if (fusb302_irq < 0) {
+		dev_dbg(dev, "FUSB302 irq is -EPROBE_DEFER\n");
+
 		if (fusb302_irq != -EPROBE_DEFER)
 			dev_err(dev, "Error getting FUSB302 irq\n");
 		return fusb302_irq;
 	}
-
-	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
 
 	/* Work around BIOS bug, see comment on cht_int33fe_find_max17047 */
 	max17047 = cht_int33fe_find_max17047();
@@ -179,8 +195,8 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 		strlcpy(board_info.type, "max17047", I2C_NAME_SIZE);
 		board_info.dev_name = "max17047";
 		board_info.properties = max17047_props;
-		data->max17047 = i2c_acpi_new_device(dev, 1, &board_info);
-		if (!data->max17047)
+		data->battery_fg = i2c_acpi_new_device(dev, 1, &board_info);
+		if (!data->battery_fg)
 			return -EPROBE_DEFER; /* Wait for i2c-adapter to load */
 	}
 
@@ -217,6 +233,8 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 	if (!data->pi3usb30532)
 		goto out_unregister_fusb302;
 
+done:
+
 	platform_set_drvdata(pdev, data);
 
 	return 0;
@@ -225,8 +243,8 @@ out_unregister_fusb302:
 	i2c_unregister_device(data->fusb302);
 
 out_unregister_max17047:
-	if (data->max17047)
-		i2c_unregister_device(data->max17047);
+	if (data->battery_fg)
+		i2c_unregister_device(data->battery_fg);
 
 	device_connections_remove(data->connections);
 
@@ -237,10 +255,14 @@ static int cht_int33fe_remove(struct platform_device *pdev)
 {
 	struct cht_int33fe_data *data = platform_get_drvdata(pdev);
 
-	i2c_unregister_device(data->pi3usb30532);
-	i2c_unregister_device(data->fusb302);
-	if (data->max17047)
-		i2c_unregister_device(data->max17047);
+	if (data->pi3usb30532)
+		i2c_unregister_device(data->pi3usb30532);
+
+	if (data->fusb302)
+		i2c_unregister_device(data->fusb302);
+
+	if (data->battery_fg)
+		i2c_unregister_device(data->battery_fg);
 
 	device_connections_remove(data->connections);
 
