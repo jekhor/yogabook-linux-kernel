@@ -281,15 +281,15 @@ static const struct property_entry bq24190_props[] = {
 };
 
 static const struct property_entry bq24192_props[] = {
-	PROPERTY_ENTRY_U32("ti,charge-current", 500000),
+	PROPERTY_ENTRY_U32("ti,charge-current", 1536000), // safe fallback
 	PROPERTY_ENTRY_U32("ti,battery-regulation-voltage", 4208000),
 	PROPERTY_ENTRY_U32("ti,termination-current", 256000),
 	PROPERTY_ENTRY_U32("ti,precharge-current", 128000),
 	PROPERTY_ENTRY_U32("ti,minimum-sys-voltage", 3500000),
 	PROPERTY_ENTRY_U32("ti,boost-voltage", 4998000),
 	PROPERTY_ENTRY_U32("ti,boost-max-current", 1400000),
-	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
-//	PROPERTY_ENTRY_BOOL("disable-reset"),
+//	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
+	PROPERTY_ENTRY_BOOL("disable-reset"),
 	{}
 };
 
