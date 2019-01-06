@@ -810,11 +810,17 @@ static int bq25890_usb_notifier(struct notifier_block *nb, unsigned long val,
 
 static int bq25890_get_chip_version(struct bq25890_device *bq)
 {
-	int id;
+	int id, rev;
 
 	id = bq25890_field_read(bq, F_PN);
 	if (id < 0) {
 		dev_err(bq->dev, "Cannot read chip ID.\n");
+		return id;
+	}
+
+	rev = bq25890_field_read(bq, F_DEV_REV);
+	if (rev < 0) {
+		dev_err(bq->dev, "Cannot read chip revision.\n");
 		return id;
 	}
 
@@ -825,27 +831,23 @@ static int bq25890_get_chip_version(struct bq25890_device *bq)
 
 	/* BQ25892 and BQ25896 share same ID=0 */
 	case BQ25892_ID:
-		{
-			int r;
-
-			/* F_SDP_STAT is reserved in bq25892 and bq25896 but
-			 * values are different
-			 */
-			r = bq25890_field_read(bq, F_SDP_STAT);
-			if (r < 0) {
-				dev_err(bq->dev, "Cannot read reg 0B.\n");
-				return r;
-			}
-
-			if (r)
-				bq->chip_version = BQ25896;
-			else
-				bq->chip_version = BQ25892;
-		break;
+		switch (rev) {
+		case 0:
+			bq->chip_version = BQ25896;
+			break;
+		case 1:
+			bq->chip_version = BQ25892;
+			break;
+		default:
+			dev_err(bq->dev, "Unknown device revision %d, assume BQ25892\n", rev);
+			bq->chip_version = BQ25892;
 		}
+		break;
+
 	case BQ25895_ID:
 		bq->chip_version = BQ25895;
 		break;
+
 	default:
 		dev_err(bq->dev, "Unknown chip ID %d\n", id);
 		return -ENODEV;
