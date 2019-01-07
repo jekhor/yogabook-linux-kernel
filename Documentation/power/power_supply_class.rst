@@ -177,6 +177,9 @@ CHARGE_CONTROL_LIMIT
 CHARGE_CONTROL_LIMIT_MAX
   maximum charge control limit setting
 
+CHARGE_CURRENT_NOW
+  charge current measured by charger
+
 CALIBRATE
   battery or coulomb counter calibration status
 
