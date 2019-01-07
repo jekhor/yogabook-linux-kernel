@@ -456,7 +456,7 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 		if (ret < 0)
 			return ret;
 
-		val->intval = bq->init_data.ichg;
+		val->intval = bq25890_find_val(bq->init_data.ichg, TBL_ICHG);
 
 		/* When temperature is too cold, charge current is decreased */
 		if (bq->state.ntc_fault == NTC_FAULT_COOL) {
@@ -489,7 +489,7 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 		if (ret < 0)
 			return ret;
 
-		val->intval = bq->init_data.vreg;
+		val->intval = bq25890_find_val(bq->init_data.vreg, TBL_VREG);
 
 		/* Decrease CV voltage if too warm accordingly with
 		 * JEITA_VSET setting
@@ -1000,6 +1000,14 @@ static int bq25890_probe(struct i2c_client *client,
 
 	mutex_init(&bq->lock);
 
+	bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB2);
+	printk("bq->usb_phy = 0x%p, is error or null: %d (%ld)\n", bq->usb_phy, IS_ERR_OR_NULL(bq->usb_phy), PTR_ERR(bq->usb_phy));
+	dev_dbg(bq->dev, "wait-for-usbphy dev property: %d\n", device_property_read_bool(bq->dev, "wait-for-usbphy"));
+	/* Defer probing if USB PHY still not ready */
+	if (IS_ERR_OR_NULL(bq->usb_phy)
+			&& device_property_read_bool(bq->dev, "wait-for-usbphy"))
+			return -EPROBE_DEFER;
+
 	bq->rmap = devm_regmap_init_i2c(client, &bq25890_regmap_config);
 	if (IS_ERR(bq->rmap)) {
 		dev_err(dev, "failed to allocate register map\n");
@@ -1050,14 +1058,8 @@ static int bq25890_probe(struct i2c_client *client,
 	}
 
 	/* OTG reporting */
-	bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB2);
-	printk("bq->usb_phy = 0x%p, is error or null: %d (%ld)\n", bq->usb_phy, IS_ERR_OR_NULL(bq->usb_phy), PTR_ERR(bq->usb_phy));
-	if (IS_ERR_OR_NULL(bq->usb_phy)) {
-		bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB3);
-	}
-
 	if (!IS_ERR_OR_NULL(bq->usb_phy)) {
-		printk("usb phy label = %s\n", bq->usb_phy->label);
+		dev_dbg(bq->dev, "usb phy: %s\n", bq->usb_phy->label);
 		INIT_WORK(&bq->usb_work, bq25890_usb_work);
 		bq->usb_nb.notifier_call = bq25890_usb_notifier;
 		usb_register_notifier(bq->usb_phy, &bq->usb_nb);
