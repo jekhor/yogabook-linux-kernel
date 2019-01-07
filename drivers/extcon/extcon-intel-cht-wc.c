@@ -7,6 +7,8 @@
  * Copyright (C) 2013-2015 Intel Corporation. All rights reserved.
  */
 
+#define DEBUG
+
 #include <linux/extcon-provider.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -254,7 +256,7 @@ static void cht_wc_extcon_enable_charging(struct cht_wc_extcon_data *ext,
 		return;
 	}
 
-	chgdisctrl &= CHT_WC_CHGDISCTRL_CCSM_MASK;
+	chgdisctrl &= ~CHT_WC_CHGDISCTRL_CCSM_MASK;
 
 	if (enable)
 		chgdisctrl |= CHT_WC_CHGDISCTRL_CCSM_EN;
