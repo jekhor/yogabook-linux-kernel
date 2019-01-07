@@ -57,6 +57,12 @@
 #define CHT_WC_USBSRC_TYPE_OTHER	8
 #define CHT_WC_USBSRC_TYPE_DCP_EXTPHY	9
 
+#define CHT_WC_CHGDISCTRL		0x5e2f
+#define CHT_WC_CHGDISCTRL_CCSM_DIS	0x11
+#define CHT_WC_CHGDISCTRL_CCSM_EN	0x00
+#define CHT_WC_CHGDISCTRL_CCSM_MASK	0x51
+
+
 #define CHT_WC_PWRSRC_IRQ		0x6e03
 #define CHT_WC_PWRSRC_IRQ_MASK		0x6e0f
 #define CHT_WC_PWRSRC_STS		0x6e1e
@@ -230,6 +236,31 @@ static void cht_wc_extcon_set_otgmode(struct cht_wc_extcon_data *ext, bool enabl
 		dev_err(ext->dev, "Error writing CHGRCTRL1 OTG mode bit: %d\n", ret);
 }
 
+static void cht_wc_extcon_enable_charging(struct cht_wc_extcon_data *ext,
+		bool enable)
+{
+	unsigned int chgdisctrl;
+	int ret;
+
+	ret = regmap_read(ext->regmap, CHT_WC_CHGDISCTRL, &chgdisctrl);
+	if (ret) {
+		dev_err(ext->dev, "Error reading CHGDISCTRL reg: %d\n", ret);
+		return;
+	}
+
+	chgdisctrl &= CHT_WC_CHGDISCTRL_CCSM_MASK;
+
+	if (enable)
+		chgdisctrl |= CHT_WC_CHGDISCTRL_CCSM_EN;
+	else
+		chgdisctrl |= CHT_WC_CHGDISCTRL_CCSM_DIS;
+
+	dev_dbg(ext->dev, "Writing CHGDISCTRL: 0x%02x\n", chgdisctrl);
+	ret = regmap_write(ext->regmap, CHT_WC_CHGDISCTRL, chgdisctrl);
+	if (ret)
+		dev_err(ext->dev, "Error writing CHGDISCTRL: %d\n", ret);
+}
+
 /* Small helper to sync EXTCON_CHG_USB_SDP and EXTCON_USB state */
 static void cht_wc_extcon_set_state(struct cht_wc_extcon_data *ext,
 				    unsigned int cable, bool state)
@@ -366,6 +397,9 @@ static int cht_wc_extcon_probe(struct platform_device *pdev)
 	 * external 5v boost converter off and leave it off entirely.
 	 */
 	cht_wc_extcon_set_5v_boost(ext, false);
+
+	/* Allow charging by external battery charger*/
+	cht_wc_extcon_enable_charging(ext, true);
 
 	/* Enable sw control */
 	ret = cht_wc_extcon_sw_control(ext, true);
