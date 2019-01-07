@@ -141,6 +141,8 @@ the current drawn from a charging source.
 CHARGE_CONTROL_LIMIT - current charge control limit setting
 CHARGE_CONTROL_LIMIT_MAX - maximum charge control limit setting
 
+CHARGE_CURRENT_NOW - charge current measured by charger
+
 CALIBRATE - battery or coulomb counter calibration status
 
 CAPACITY - capacity in percents.
