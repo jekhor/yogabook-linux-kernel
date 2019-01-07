@@ -291,6 +291,7 @@ static const struct property_entry bq24192_props[] = {
 	PROPERTY_ENTRY_U32("ti,input-max-current", 1950000),
 //	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
 	PROPERTY_ENTRY_BOOL("disable-reset"),
+	PROPERTY_ENTRY_BOOL("wait-for-usbphy"),
 	{}
 };
 
