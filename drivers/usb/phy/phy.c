@@ -364,6 +364,7 @@ static void usb_charger_init(struct usb_phy *usb_phy)
 static int usb_add_extcon(struct usb_phy *x)
 {
 	int ret;
+	const char *extcon_name;
 
 	if (of_property_read_bool(x->dev->of_node, "extcon")) {
 		x->edev = extcon_get_edev_by_phandle(x->dev, 0);
@@ -376,71 +377,86 @@ static int usb_add_extcon(struct usb_phy *x)
 			dev_info(x->dev, "No separate ID extcon device\n");
 		}
 
-		if (x->vbus_nb.notifier_call) {
-			ret = devm_extcon_register_notifier(x->dev, x->edev,
-							    EXTCON_USB,
-							    &x->vbus_nb);
-			if (ret < 0) {
-				dev_err(x->dev,
-					"register VBUS notifier failed\n");
-				return ret;
-			}
-		} else {
-			x->type_nb.notifier_call = usb_phy_get_charger_type;
+	}
 
-			ret = devm_extcon_register_notifier(x->dev, x->edev,
-							    EXTCON_CHG_USB_SDP,
-							    &x->type_nb);
-			if (ret) {
-				dev_err(x->dev,
-					"register extcon USB SDP failed.\n");
-				return ret;
-			}
-
-			ret = devm_extcon_register_notifier(x->dev, x->edev,
-							    EXTCON_CHG_USB_CDP,
-							    &x->type_nb);
-			if (ret) {
-				dev_err(x->dev,
-					"register extcon USB CDP failed.\n");
-				return ret;
-			}
-
-			ret = devm_extcon_register_notifier(x->dev, x->edev,
-							    EXTCON_CHG_USB_DCP,
-							    &x->type_nb);
-			if (ret) {
-				dev_err(x->dev,
-					"register extcon USB DCP failed.\n");
-				return ret;
-			}
-
-			ret = devm_extcon_register_notifier(x->dev, x->edev,
-							    EXTCON_CHG_USB_ACA,
-							    &x->type_nb);
-			if (ret) {
-				dev_err(x->dev,
-					"register extcon USB ACA failed.\n");
-				return ret;
-			}
+	ret = device_property_read_string(x->dev, "extcon", &extcon_name);
+	if (!ret) {
+		x->edev = extcon_get_extcon_dev(extcon_name);
+		if (IS_ERR(x->edev)) {
+			dev_err(x->dev, "Error getting extcon device: %ld\n", PTR_ERR(x->edev));
+			return PTR_ERR(x->edev);
 		}
 
-		if (x->id_nb.notifier_call) {
-			struct extcon_dev *id_ext;
+		dev_info(x->dev, "extcon dev %s\n", extcon_get_edev_name(x->edev));
 
-			if (x->id_edev)
-				id_ext = x->id_edev;
-			else
-				id_ext = x->edev;
+	} else
+		return 0;
 
-			ret = devm_extcon_register_notifier(x->dev, id_ext,
-							    EXTCON_USB_HOST,
-							    &x->id_nb);
-			if (ret < 0) {
-				dev_err(x->dev,
+
+	if (x->vbus_nb.notifier_call) {
+		ret = devm_extcon_register_notifier(x->dev, x->edev,
+				EXTCON_USB,
+				&x->vbus_nb);
+		if (ret < 0) {
+			dev_err(x->dev,
+					"register VBUS notifier failed\n");
+			return ret;
+		}
+	} else {
+		x->type_nb.notifier_call = usb_phy_get_charger_type;
+
+		ret = devm_extcon_register_notifier(x->dev, x->edev,
+				EXTCON_CHG_USB_SDP,
+				&x->type_nb);
+		if (ret) {
+			dev_err(x->dev,
+					"register extcon USB SDP failed.\n");
+			return ret;
+		}
+
+		ret = devm_extcon_register_notifier(x->dev, x->edev,
+				EXTCON_CHG_USB_CDP,
+				&x->type_nb);
+		if (ret) {
+			dev_err(x->dev,
+					"register extcon USB CDP failed.\n");
+			return ret;
+		}
+
+		ret = devm_extcon_register_notifier(x->dev, x->edev,
+				EXTCON_CHG_USB_DCP,
+				&x->type_nb);
+		if (ret) {
+			dev_err(x->dev,
+					"register extcon USB DCP failed.\n");
+			return ret;
+		}
+
+		ret = devm_extcon_register_notifier(x->dev, x->edev,
+				EXTCON_CHG_USB_ACA,
+				&x->type_nb);
+		if (ret) {
+			dev_err(x->dev,
+					"register extcon USB ACA failed.\n");
+			return ret;
+		}
+	}
+
+	if (x->id_nb.notifier_call) {
+		struct extcon_dev *id_ext;
+
+		if (x->id_edev)
+			id_ext = x->id_edev;
+		else
+			id_ext = x->edev;
+
+		ret = devm_extcon_register_notifier(x->dev, id_ext,
+				EXTCON_USB_HOST,
+				&x->id_nb);
+		if (ret < 0) {
+			dev_err(x->dev,
 					"register ID notifier failed\n");
-				return ret;
-			}
+			return ret;
 		}
 	}
 
