@@ -97,12 +97,51 @@ static void nop_set_vbus_draw(struct usb_phy_generic *nop, unsigned mA)
 	nop->mA = mA;
 }
 
+static int nop_handle_event(struct usb_phy_generic *nop, unsigned long event)
+{
+	struct usb_otg *otg = nop->phy.otg;
+
+	switch (event) {
+	case USB_EVENT_VBUS:
+		otg->state = OTG_STATE_B_PERIPHERAL;
+		nop->phy.last_event = event;
+
+		/* drawing a "unit load" is *always* OK, except for OTG */
+		nop_set_vbus_draw(nop, 100);
+
+		atomic_notifier_call_chain(&nop->phy.notifier, event,
+				otg->gadget);
+		break;
+
+	case USB_EVENT_ID:
+		otg->state = OTG_STATE_A_IDLE;
+		/* TODO: review nop->vbus_draw */
+		nop_set_vbus_draw(nop, 0);
+		nop->phy.last_event = event;
+		atomic_notifier_call_chain(&nop->phy.notifier, event,
+				otg->gadget);
+		break;
+	case USB_EVENT_NONE:
+		nop_set_vbus_draw(nop, 0);
+
+		otg->state = OTG_STATE_B_IDLE;
+		nop->phy.last_event = event;
+
+		atomic_notifier_call_chain(&nop->phy.notifier, event,
+					   otg->gadget);
+		break;
+
+	default:
+		dev_dbg(nop->dev, "Unknown USB ID event %lu\n", event);
+	}
+
+	return 0;
+}
 
 static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 {
 	struct usb_phy_generic *nop = data;
-	struct usb_otg *otg = nop->phy.otg;
-	int vbus, status;
+	int vbus;
 
 	vbus = gpiod_get_value(nop->gpiod_vbus);
 	if ((vbus ^ nop->vbus) == 0)
@@ -110,24 +149,9 @@ static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 	nop->vbus = vbus;
 
 	if (vbus) {
-		status = USB_EVENT_VBUS;
-		otg->state = OTG_STATE_B_PERIPHERAL;
-		nop->phy.last_event = status;
-
-		/* drawing a "unit load" is *always* OK, except for OTG */
-		nop_set_vbus_draw(nop, 100);
-
-		atomic_notifier_call_chain(&nop->phy.notifier, status,
-					   otg->gadget);
+		nop_handle_event(nop, USB_EVENT_VBUS);
 	} else {
-		nop_set_vbus_draw(nop, 0);
-
-		status = USB_EVENT_NONE;
-		otg->state = OTG_STATE_B_IDLE;
-		nop->phy.last_event = status;
-
-		atomic_notifier_call_chain(&nop->phy.notifier, status,
-					   otg->gadget);
+		nop_handle_event(nop, USB_EVENT_NONE);
 	}
 	return IRQ_HANDLED;
 }
