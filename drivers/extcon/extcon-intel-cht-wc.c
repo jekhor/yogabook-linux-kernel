@@ -14,9 +14,11 @@
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
 
+#include "extcon.h"
 #include "extcon-intel.h"
 
 #define CHT_WC_PHYCTRL			0x5e07
@@ -82,6 +84,8 @@
 #define CHT_WC_VBUS_GPIO_CTLO_DRV_OD	BIT(4)
 #define CHT_WC_VBUS_GPIO_CTLO_DIR_OUT	BIT(5)
 
+#define DRIVER_NAME "cht_wcove_pwrsrc"
+
 enum cht_wc_mux_select {
 	MUX_SEL_PMIC = 0,
 	MUX_SEL_SOC,
@@ -103,6 +107,7 @@ struct cht_wc_extcon_data {
 	struct extcon_dev *edev;
 	unsigned int previous_cable;
 	bool usb_host;
+	struct platform_device *usb_phy_pdev;
 };
 
 static int cht_wc_extcon_get_id(struct cht_wc_extcon_data *ext, int pwrsrc_sts)
@@ -333,6 +338,11 @@ static int cht_wc_extcon_sw_control(struct cht_wc_extcon_data *ext, bool enable)
 	return ret;
 }
 
+static const struct property_entry usb_phy_props[] = {
+	PROPERTY_ENTRY_STRING("extcon", DRIVER_NAME),
+	{}
+};
+
 static int cht_wc_extcon_probe(struct platform_device *pdev)
 {
 	struct intel_soc_pmic *pmic = dev_get_drvdata(pdev->dev.parent);
@@ -419,9 +429,24 @@ static int cht_wc_extcon_probe(struct platform_device *pdev)
 		goto disable_sw_control;
 	}
 
-	platform_set_drvdata(pdev, ext);
+	ext->usb_phy_pdev = platform_device_alloc("usb_phy_generic",
+			PLATFORM_DEVID_AUTO);
+	if (ext->usb_phy_pdev) {
+		ret = device_create_managed_software_node(&ext->usb_phy_pdev->dev,
+							  usb_phy_props, NULL);
+		if (ret)
+			goto err;
 
+		ext->usb_phy_pdev->dev.parent = &ext->edev->dev;
+		ret = platform_device_add(ext->usb_phy_pdev);
+		if (ret)
+			dev_err(ext->dev, "Error %d registering usb phy platform"
+					" device, continue without it\n", ret);
+	}
+
+	platform_set_drvdata(pdev, ext);
 	return 0;
+err:
 
 disable_sw_control:
 	cht_wc_extcon_sw_control(ext, false);
@@ -434,11 +459,14 @@ static int cht_wc_extcon_remove(struct platform_device *pdev)
 
 	cht_wc_extcon_sw_control(ext, false);
 
+	if (ext->usb_phy_pdev)
+		platform_device_unregister(ext->usb_phy_pdev);
+
 	return 0;
 }
 
 static const struct platform_device_id cht_wc_extcon_table[] = {
-	{ .name = "cht_wcove_pwrsrc" },
+	{ .name = DRIVER_NAME },
 	{},
 };
 MODULE_DEVICE_TABLE(platform, cht_wc_extcon_table);
@@ -448,7 +476,7 @@ static struct platform_driver cht_wc_extcon_driver = {
 	.remove = cht_wc_extcon_remove,
 	.id_table = cht_wc_extcon_table,
 	.driver = {
-		.name = "cht_wcove_pwrsrc",
+		.name = DRIVER_NAME,
 	},
 };
 module_platform_driver(cht_wc_extcon_driver);
