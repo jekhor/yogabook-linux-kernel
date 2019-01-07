@@ -38,7 +38,7 @@ enum bq25890_chip_version {
 };
 
 enum bq25890_fields {
-	F_EN_HIZ, F_EN_ILIM, F_IILIM,				     /* Reg00 */
+	F_EN_HIZ, F_EN_ILIM, F_IINLIM,				     /* Reg00 */
 	F_BHOT, F_BCOLD, F_VINDPM_OFS,				     /* Reg01 */
 	F_CONV_START, F_CONV_RATE, F_BOOSTF, F_ICO_EN,
 	F_HVDCP_EN, F_MAXC_EN, F_FORCE_DPM, F_AUTO_DPDM_EN,	     /* Reg02 */
@@ -90,6 +90,7 @@ struct bq25890_state {
 	u8 vsys_status;
 	u8 boost_fault;
 	u8 bat_fault;
+	u8 ntc_fault;
 };
 
 struct bq25890_device {
@@ -148,7 +149,7 @@ static const struct reg_field bq25890_reg_fields[] = {
 	/* REG00 */
 	[F_EN_HIZ]		= REG_FIELD(0x00, 7, 7),
 	[F_EN_ILIM]		= REG_FIELD(0x00, 6, 6),
-	[F_IILIM]		= REG_FIELD(0x00, 0, 5),
+	[F_IINLIM]		= REG_FIELD(0x00, 0, 5),
 	/* REG01 */
 	[F_BHOT]		= REG_FIELD(0x01, 6, 7),
 	[F_BCOLD]		= REG_FIELD(0x01, 5, 5),
@@ -249,6 +250,7 @@ static const struct reg_field bq25890_reg_fields[] = {
  */
 enum bq25890_table_ids {
 	/* range tables */
+	TBL_IINLIM,
 	TBL_ICHG,
 	TBL_ITERM,
 	TBL_VREG,
@@ -289,6 +291,7 @@ static const union {
 } bq25890_tables[] = {
 	/* range tables */
 	/* TODO: BQ25896 has max ICHG 3008 mA */
+	[TBL_IINLIM] =	{ .rt = {100000,  3250000, 50000} },	 /* uA */
 	[TBL_ICHG] =	{ .rt = {0,	  5056000, 64000} },	 /* uA */
 	[TBL_ITERM] =	{ .rt = {64000,   1024000, 64000} },	 /* uA */
 	[TBL_VREG] =	{ .rt = {3840000, 4608000, 16000} },	 /* uV */
@@ -372,6 +375,14 @@ enum bq25890_chrg_fault {
 	CHRG_FAULT_TIMER_EXPIRED,
 };
 
+enum bq25890_ntc_fault {
+	NTC_FAULT_NORMAL = 0,
+	NTC_FAULT_WARM = 2,
+	NTC_FAULT_COOL = 3,
+	NTC_FAULT_COLD = 5,
+	NTC_FAULT_HOT = 6,
+};
+
 static int bq25890_power_supply_get_property(struct power_supply *psy,
 					     enum power_supply_property psp,
 					     union power_supply_propval *val)
@@ -435,7 +446,7 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
 		break;
 
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
+	case POWER_SUPPLY_PROP_CHARGE_CURRENT_NOW:
 		ret = bq25890_field_read(bq, F_ICHGR); /* read measured value */
 		if (ret < 0)
 			return ret;
@@ -444,11 +455,28 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 		val->intval = ret * 50000;
 		break;
 
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
+		ret = bq25890_field_read(bq, F_JEITA_ISET);
+		if (ret < 0)
+			return ret;
+
+		val->intval = bq->init_data.ichg;
+
+		/* When temperature is too cold, charge current is decreased */
+		if (bq->state.ntc_fault == NTC_FAULT_COOL) {
+			if (ret)
+				val->intval /= 5;
+			else
+				val->intval /= 2;
+		}
+		break;
+
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		val->intval = bq25890_find_val(bq->init_data.ichg, TBL_ICHG);
 		break;
 
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
+#if 0
 		if (!state.online) {
 			val->intval = 0;
 			break;
@@ -460,6 +488,18 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 
 		/* converted_val = 2.304V + ADC_val * 20mV (table 10.3.15) */
 		val->intval = 2304000 + ret * 20000;
+#endif
+		ret = bq25890_field_read(bq, F_JEITA_VSET);
+		if (ret < 0)
+			return ret;
+
+		val->intval = bq->init_data.vreg;
+
+		/* Decrease CV voltage if too warm accordingly with
+		 * JEITA_VSET setting
+		 */
+		if (bq->state.ntc_fault == NTC_FAULT_WARM && !ret)
+			val->intval -= 200000;
 		break;
 
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
@@ -470,6 +510,10 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 		val->intval = bq25890_find_val(bq->init_data.iterm, TBL_ITERM);
 		break;
 
+	case POWER_SUPPLY_PROP_PRECHARGE_CURRENT:
+		val->intval = bq25890_find_val(bq->init_data.iprechg, TBL_ITERM);
+		break;
+
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		ret = bq25890_field_read(bq, F_SYSV); /* read measured value */
 		if (ret < 0)
@@ -478,7 +522,12 @@ static int bq25890_power_supply_get_property(struct power_supply *psy,
 		/* converted_val = 2.304V + ADC_val * 20mV (table 10.3.15) */
 		val->intval = 2304000 + ret * 20000;
 		break;
-
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		ret = bq25890_field_read(bq, F_IINLIM);
+		if (ret < 0)
+			return ret;
+		val->intval = bq25890_find_val(ret, TBL_IINLIM);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -500,7 +549,8 @@ static int bq25890_get_chip_state(struct bq25890_device *bq,
 		{F_VSYS_STAT,	&state->vsys_status},
 		{F_BOOST_FAULT, &state->boost_fault},
 		{F_BAT_FAULT,	&state->bat_fault},
-		{F_CHG_FAULT,	&state->chrg_fault}
+		{F_CHG_FAULT,	&state->chrg_fault},
+		{F_NTC_FAULT,	&state->ntc_fault}
 	};
 
 	for (i = 0; i < ARRAY_SIZE(state_fields); i++) {
@@ -511,9 +561,10 @@ static int bq25890_get_chip_state(struct bq25890_device *bq,
 		*state_fields[i].data = ret;
 	}
 
-	dev_dbg(bq->dev, "S:CHG/PG/VSYS=%d/%d/%d, F:CHG/BOOST/BAT=%d/%d/%d\n",
+	dev_dbg(bq->dev, "S:CHG/PG/VSYS=%d/%d/%d, F:CHG/BOOST/BAT/NTC=%d/%d/%d/%d\n",
 		state->chrg_status, state->online, state->vsys_status,
-		state->chrg_fault, state->boost_fault, state->bat_fault);
+		state->chrg_fault, state->boost_fault, state->bat_fault,
+		state->ntc_fault);
 
 	return 0;
 }
@@ -692,8 +743,11 @@ static enum power_supply_property bq25890_power_supply_props[] = {
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
+	POWER_SUPPLY_PROP_CHARGE_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
+	POWER_SUPPLY_PROP_PRECHARGE_CURRENT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 };
 
 static char *bq25890_charger_supplied_to[] = {
@@ -768,7 +822,7 @@ static void bq25890_usb_work(struct work_struct *data)
 				mA = 3250;
 
 			ilim = (mA - 100) / 50;
-			ret = bq25890_field_write(bq, F_IILIM, ilim);
+			ret = bq25890_field_write(bq, F_IINLIM, ilim);
 			if (ret)
 				goto error;
 
