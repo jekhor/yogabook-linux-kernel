@@ -130,6 +130,13 @@ Contact:	linux-pm@vger.kernel.org
 Description:
 		Maximum legal value for the charge_control_limit property.
 
+What:		/sys/class/power_supply/<supply_name>/charge_current_now
+Date:		Jan 2019
+Contact:	linux-pm@vger.kernel.org
+Description:
+		Reports an instant, single charge current reading for the
+		battery charger. This value is not averaged/smoothed.
+
 		Access: Read
 		Valid values: Represented in microamps
 
