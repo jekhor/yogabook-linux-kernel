@@ -81,6 +81,7 @@ struct bq25890_init_data {
 	u8 boostf;	/* boost frequency		*/
 	u8 ilim_en;	/* enable ILIM pin		*/
 	u8 treg;	/* thermal regulation threshold */
+	u8 iinlim_max;	/* maximum input current limit allowed */
 };
 
 struct bq25890_state {
@@ -681,7 +682,8 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_BOOSTI,	 bq->init_data.boosti},
 		{F_BOOSTF,	 bq->init_data.boostf},
 		{F_EN_ILIM,	 bq->init_data.ilim_en},
-		{F_TREG,	 bq->init_data.treg}
+		{F_TREG,	 bq->init_data.treg},
+		{F_IINLIM,	 bq->init_data.iinlim_max},
 	};
 
 	/* Don't reset chip at driver initialization if property 'disable-reset'
@@ -762,6 +764,24 @@ static const struct power_supply_desc bq25890_power_supply_desc = {
 	.get_property = bq25890_power_supply_get_property,
 };
 
+
+static ssize_t bq25890_show_input_voltage(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	struct bq25890_device *bq = dev_get_drvdata(dev);
+	int ret;
+
+	ret = bq25890_field_read(bq, F_VBUSV);
+	if (ret < 0)
+		return ret;
+
+	return scnprintf(buf, PAGE_SIZE, "%u", ret * 100000 + 2600000);
+}
+
+DEVICE_ATTR(input_voltage_now, S_IRUGO, bq25890_show_input_voltage, NULL);
+
+
 static int bq25890_power_supply_init(struct bq25890_device *bq)
 {
 	struct power_supply_config psy_cfg = { .drv_data = bq, };
@@ -815,14 +835,19 @@ static void bq25890_usb_work(struct work_struct *data)
 	default:
 		if (bq->usb_event >= 100) {
 			/* Charger max current event */
-			unsigned int ilim;
+			u8 iinlim;
 			unsigned long mA = bq->usb_event;
 
 			if (mA > 3250)
 				mA = 3250;
 
-			ilim = (mA - 100) / 50;
-			ret = bq25890_field_write(bq, F_IINLIM, ilim);
+			iinlim = bq25890_find_idx(mA * 1000, TBL_IINLIM);
+
+			dev_dbg(bq->dev, "Found iilim = %u, bq->init_data.iinlim_max = %u\n", iinlim, bq->init_data.iinlim_max);
+
+			iinlim = min(bq->init_data.iinlim_max, iinlim);
+
+			ret = bq25890_field_write(bq, F_IINLIM, iinlim);
 			if (ret)
 				goto error;
 
@@ -838,7 +863,8 @@ static void bq25890_usb_work(struct work_struct *data)
 
 			power_supply_changed(bq->charger);
 
-			dev_dbg(bq->dev, "Set max input current to %lu mA (ILIM=0x%x)\n", mA, ilim);
+			dev_dbg(bq->dev, "Set input current limit to %u mA (IINLIM=0x%x)\n",
+					bq25890_find_val(iinlim, TBL_IINLIM) / 1000, iinlim);
 		} else {
 			dev_dbg(bq->dev, "Unknown USB event %lu\n", bq->usb_event);
 		}
@@ -945,11 +971,13 @@ static int bq25890_fw_read_u32_props(struct bq25890_device *bq)
 		{"ti,boost-max-current", false, TBL_BOOSTI, &init->boosti},
 
 		/* optional properties */
-		{"ti,thermal-regulation-threshold", true, TBL_TREG, &init->treg}
+		{"ti,thermal-regulation-threshold", true, TBL_TREG, &init->treg},
+		{"ti,input-max-current", true, TBL_IINLIM, &init->iinlim_max},
 	};
 
 	/* initialize data for optional properties */
 	init->treg = 3; /* 120 degrees Celsius */
+	init->iinlim_max = 0x3f;
 
 	for (i = 0; i < ARRAY_SIZE(props); i++) {
 		ret = device_property_read_u32(bq->dev, props[i].name,
