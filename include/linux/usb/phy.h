@@ -63,6 +63,12 @@ enum usb_otg_state {
 	OTG_STATE_A_VBUS_ERR,
 };
 
+enum usb_vbus_power_role {
+	USB_VBUS_CONSUMER,
+	USB_VBUS_SUPPLIER,
+	USB_VBUS_UNKNOWN,
+};
+
 struct usb_phy;
 struct usb_otg;
 
@@ -105,6 +111,7 @@ struct usb_phy {
 	struct notifier_block	vbus_nb;
 	struct notifier_block	id_nb;
 	struct notifier_block	type_nb;
+	enum usb_vbus_power_role vbus_role;
 
 	/* Support USB charger */
 	enum usb_charger_type	chg_type;
