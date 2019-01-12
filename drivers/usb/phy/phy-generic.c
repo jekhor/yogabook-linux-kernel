@@ -338,6 +338,21 @@ static int usb_phy_generic_probe(struct platform_device *pdev)
 	nop->phy.init		= usb_gen_phy_init;
 	nop->phy.shutdown	= usb_gen_phy_shutdown;
 
+	nop->vbus_draw = devm_regulator_get(&pdev->dev, "vbus_draw");
+        if (IS_ERR(nop->vbus_draw)) {
+                dev_dbg(&pdev->dev, "can't get vbus_draw regulator, err: %ld\n",
+                        PTR_ERR(nop->vbus_draw));
+                nop->vbus_draw = NULL;
+        } else {
+		nop->vbus_draw_enabled = regulator_is_enabled(nop->vbus_draw);
+		/* Sync state */
+		if (nop->vbus_draw_enabled) {
+			err = regulator_enable(nop->vbus_draw);
+			if (err)
+				dev_err(nop->dev, "Cannot enable vbus_draw regulator\n");
+		}
+	}
+
 	err = usb_add_phy_dev(&nop->phy);
 	if (err) {
 		dev_err(&pdev->dev, "can't register transceiver, err: %d\n",
