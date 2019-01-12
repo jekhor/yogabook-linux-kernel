@@ -105,14 +105,14 @@ static void usb_phy_notify_charger_work(struct work_struct *work)
 	case USB_CHARGER_PRESENT:
 		usb_phy_get_charger_current(usb_phy, &min, &max);
 
-		atomic_notifier_call_chain(&usb_phy->notifier, max, usb_phy);
+		atomic_notifier_call_chain(&usb_phy->notifier, USB_EVENT_CHARGER, usb_phy);
 		snprintf(uchger_state, ARRAY_SIZE(uchger_state),
 			 "USB_CHARGER_STATE=%s", "USB_CHARGER_PRESENT");
 		break;
 	case USB_CHARGER_ABSENT:
 		usb_phy_set_default_current(usb_phy);
 
-		atomic_notifier_call_chain(&usb_phy->notifier, 0, usb_phy);
+		atomic_notifier_call_chain(&usb_phy->notifier, USB_EVENT_CHARGER, usb_phy);
 		snprintf(uchger_state, ARRAY_SIZE(uchger_state),
 			 "USB_CHARGER_STATE=%s", "USB_CHARGER_ABSENT");
 		break;
