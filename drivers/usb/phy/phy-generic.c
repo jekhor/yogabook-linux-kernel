@@ -156,21 +156,6 @@ static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int nop_extcon_id_notifier(struct notifier_block *nb,
-		unsigned long event, void *ptr)
-{
-	struct usb_phy *phy = container_of(nb, struct usb_phy, id_nb);
-	struct usb_phy_generic *nop = dev_get_drvdata(phy->dev);
-
-	if (event)
-		nop_handle_event(nop, USB_EVENT_ID);
-	else
-		nop_handle_event(nop, USB_EVENT_NONE);
-
-	return NOTIFY_DONE;
-}
-
-
 int usb_gen_phy_init(struct usb_phy *phy)
 {
 	struct usb_phy_generic *nop = dev_get_drvdata(phy->dev);
@@ -326,7 +311,6 @@ int usb_phy_gen_create_phy(struct device *dev, struct usb_phy_generic *nop,
 	nop->phy.label		= "nop-xceiv";
 	nop->phy.set_suspend	= nop_set_suspend;
 	nop->phy.type		= type;
-	nop->phy.id_nb.notifier_call = nop_extcon_id_notifier;
 
 	nop->phy.otg->state		= OTG_STATE_UNDEFINED;
 	nop->phy.otg->usb_phy		= &nop->phy;
