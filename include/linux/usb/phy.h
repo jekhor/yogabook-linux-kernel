@@ -229,8 +229,14 @@ extern void usb_phy_set_charger_current(struct usb_phy *usb_phy,
 					unsigned int mA);
 extern void usb_phy_get_charger_current(struct usb_phy *usb_phy,
 					unsigned int *min, unsigned int *max);
+extern unsigned int usb_phy_get_charger_current_max(struct usb_phy *usb_phy);
 extern void usb_phy_set_charger_state(struct usb_phy *usb_phy,
 				      enum usb_charger_state state);
+static inline enum usb_charger_state usb_phy_get_charger_state(
+		struct usb_phy *usb_phy)
+{
+	return usb_phy->chg_state;
+}
 #else
 static inline struct usb_phy *usb_get_phy(enum usb_phy_type type)
 {
@@ -278,9 +284,20 @@ static inline void usb_phy_get_charger_current(struct usb_phy *usb_phy,
 {
 }
 
+static inline int usb_phy_get_charger_current_max(struct usb_phy *usb_phy)
+{
+	return 0;
+}
+
 static inline void usb_phy_set_charger_state(struct usb_phy *usb_phy,
 					     enum usb_charger_state state)
 {
+}
+
+static inline enum usb_charger_state usb_phy_get_charger_state(
+		struct usb_phy *usb_phy)
+{
+	return USB_CHARGER_ABSENT;
 }
 #endif
 
