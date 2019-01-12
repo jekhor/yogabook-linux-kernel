@@ -14,6 +14,8 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/usb/phy.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
 
 #include <linux/acpi.h>
 #include <linux/of.h>
@@ -736,6 +738,102 @@ static const struct power_supply_desc bq25890_power_supply_desc = {
 	.num_properties = ARRAY_SIZE(bq25890_power_supply_props),
 	.get_property = bq25890_power_supply_get_property,
 };
+
+
+#ifdef CONFIG_REGULATOR
+static int bq25890_vbus_enable(struct regulator_dev *dev)
+{
+	struct bq25890_device *bq = rdev_get_drvdata(dev);
+	int ret;
+
+	dev_dbg(bq->dev, "enabling VBUS\n");
+
+	ret = bq25890_field_write(bq, F_CHG_CFG, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = bq25890_field_write(bq, F_OTG_CFG, 1);
+
+	power_supply_changed(bq->charger);
+
+	return ret;
+}
+
+static int bq25890_vbus_disable(struct regulator_dev *dev)
+{
+	struct bq25890_device *bq = rdev_get_drvdata(dev);
+	int ret;
+
+	dev_dbg(bq->dev, "disabling VBUS\n");
+
+	ret = bq25890_field_write(bq, F_OTG_CFG, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = bq25890_field_write(bq, F_CHG_CFG, 1);
+
+	power_supply_changed(bq->charger);
+
+	return ret;
+}
+
+static int bq25890_vbus_is_enabled(struct regulator_dev *dev)
+{
+	struct bq25890_device *bq = rdev_get_drvdata(dev);
+	int ret;
+
+	ret = bq25890_field_read(bq, F_OTG_CFG);
+	if (ret < 0)
+		return ret;
+
+	return !!ret;
+}
+
+static const struct regulator_ops bq25890_vbus_ops = {
+	.enable = bq25890_vbus_enable,
+	.disable = bq25890_vbus_disable,
+	.is_enabled = bq25890_vbus_is_enabled,
+};
+
+static const struct regulator_desc bq25890_vbus_desc = {
+	.name = "vbus",
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &bq25890_vbus_ops,
+	.fixed_uV = 5000000,
+	.n_voltages = 1,
+};
+
+static const struct regulator_init_data bq25890_vbus_init_data = {
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+};
+
+static int bq25890_register_vbus_regulator(struct bq25890_device *bq)
+{
+	struct regulator_config cfg = { };
+	struct regulator_dev *reg;
+	int ret = 0;
+
+	cfg.dev = bq->dev;
+	cfg.init_data = &bq25890_vbus_init_data;
+	cfg.driver_data = bq;
+
+	reg = devm_regulator_register(bq->dev, &bq25890_vbus_desc, &cfg);
+	if (IS_ERR(reg)) {
+		ret = PTR_ERR(reg);
+		dev_err(bq->dev, "Can't register regulator: %d\n", ret);
+	}
+
+	return ret;
+}
+#else
+static int bq25890_register_vbus_regulator(struct bq25890_device *bq)
+{
+	return 0;
+}
+#endif
 
 
 static ssize_t bq25890_show_input_voltage(struct device *dev,
