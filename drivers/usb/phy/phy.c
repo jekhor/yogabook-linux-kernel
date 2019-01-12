@@ -193,6 +193,9 @@ static void __usb_phy_get_charger_type(struct usb_phy *usb_phy)
 		usb_phy->chg_state = USB_CHARGER_ABSENT;
 	}
 
+	if (usb_phy->chg_state == USB_CHARGER_PRESENT)
+		usb_phy->vbus_role = USB_VBUS_CONSUMER;
+
 	schedule_work(&usb_phy->chg_work);
 }
 
@@ -211,6 +214,22 @@ static int usb_phy_get_charger_type(struct notifier_block *nb,
 	struct usb_phy *usb_phy = container_of(nb, struct usb_phy, type_nb);
 
 	__usb_phy_get_charger_type(usb_phy);
+	return NOTIFY_OK;
+}
+
+static int usb_phy_id_notifier(struct notifier_block *nb,
+				    unsigned long state, void *data)
+{
+	struct usb_phy *usb_phy = container_of(nb, struct usb_phy, id_nb);
+
+	if (state) {
+		usb_phy->vbus_role = USB_VBUS_SUPPLIER;
+		atomic_notifier_call_chain(&usb_phy->notifier, USB_EVENT_ID, usb_phy);
+	} else {
+		usb_phy->vbus_role = USB_VBUS_CONSUMER;
+		atomic_notifier_call_chain(&usb_phy->notifier, USB_EVENT_NONE, usb_phy);
+	}
+
 	return NOTIFY_OK;
 }
 
@@ -374,6 +393,7 @@ static void usb_charger_init(struct usb_phy *usb_phy)
 {
 	usb_phy->chg_type = UNKNOWN_TYPE;
 	usb_phy->chg_state = USB_CHARGER_DEFAULT;
+	usb_phy->vbus_role = USB_VBUS_UNKNOWN;
 	usb_phy_set_default_current(usb_phy);
 	INIT_WORK(&usb_phy->chg_work, usb_phy_notify_charger_work);
 }
@@ -382,6 +402,7 @@ static int usb_add_extcon(struct usb_phy *x)
 {
 	int ret;
 	const char *extcon_name;
+	struct extcon_dev *id_ext;
 
 	if (of_property_read_bool(x->dev->of_node, "extcon")) {
 		x->edev = extcon_get_edev_by_phandle(x->dev, 0);
@@ -393,7 +414,6 @@ static int usb_add_extcon(struct usb_phy *x)
 			x->id_edev = NULL;
 			dev_info(x->dev, "No separate ID extcon device\n");
 		}
-
 	}
 
 	ret = device_property_read_string(x->dev, "extcon", &extcon_name);
@@ -405,7 +425,6 @@ static int usb_add_extcon(struct usb_phy *x)
 		}
 
 		dev_info(x->dev, "extcon dev %s\n", extcon_get_edev_name(x->edev));
-
 	} else
 		return 0;
 
@@ -459,22 +478,20 @@ static int usb_add_extcon(struct usb_phy *x)
 		}
 	}
 
-	if (x->id_nb.notifier_call) {
-		struct extcon_dev *id_ext;
+	x->id_nb.notifier_call = usb_phy_id_notifier;
 
-		if (x->id_edev)
-			id_ext = x->id_edev;
-		else
-			id_ext = x->edev;
+	if (x->id_edev)
+		id_ext = x->id_edev;
+	else
+		id_ext = x->edev;
 
-		ret = devm_extcon_register_notifier(x->dev, id_ext,
-				EXTCON_USB_HOST,
-				&x->id_nb);
-		if (ret < 0) {
-			dev_err(x->dev,
-					"register ID notifier failed\n");
-			return ret;
-		}
+	ret = devm_extcon_register_notifier(x->dev, id_ext,
+			EXTCON_USB_HOST,
+			&x->id_nb);
+	if (ret < 0) {
+		dev_err(x->dev,
+				"register ID notifier failed\n");
+		return ret;
 	}
 
 	if (x->type_nb.notifier_call)
