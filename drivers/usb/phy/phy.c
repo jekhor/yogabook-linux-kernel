@@ -306,6 +306,23 @@ void usb_phy_get_charger_current(struct usb_phy *usb_phy,
 EXPORT_SYMBOL_GPL(usb_phy_get_charger_current);
 
 /**
+ * usb_phy_get_charger_current_max - get the max USB charger current
+ * @usb_phy - the USB phy to be used
+ *
+ * In most cases power user need to know max charge current only,
+ * provide simple function to get this.
+ */
+unsigned int usb_phy_get_charger_current_max(struct usb_phy *usb_phy)
+{
+	unsigned int min, max;
+
+	usb_phy_get_charger_current(usb_phy, &min, &max);
+
+	return max;
+}
+EXPORT_SYMBOL_GPL(usb_phy_get_charger_current_max);
+
+/**
  * usb_phy_set_charger_state - set the USB charger state
  * @usb_phy: the USB phy to be used
  * @state: the new state need to be set for charger
