@@ -105,7 +105,7 @@ struct bq25890_device {
 
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_nb;
-	struct work_struct usb_work;
+	struct delayed_work usb_work;
 	unsigned long usb_event;
 
 	struct regmap *rmap;
@@ -900,7 +900,7 @@ static void bq25890_usb_work(struct work_struct *data)
 {
 	int ret;
 	struct bq25890_device *bq =
-			container_of(data, struct bq25890_device, usb_work);
+			container_of(data, struct bq25890_device, usb_work.work);
 	struct usb_phy *phy = bq->usb_phy;
 	u8 iinlim;
 	unsigned int mA;
@@ -1001,7 +1001,8 @@ static int bq25890_usb_notifier(struct notifier_block *nb, unsigned long val,
 			container_of(nb, struct bq25890_device, usb_nb);
 
 	bq->usb_event = val;
-	queue_work(system_power_efficient_wq, &bq->usb_work);
+	/* Delay to make chance to handle number of events by one call */
+	queue_delayed_work(system_power_efficient_wq, &bq->usb_work, HZ);
 
 	return NOTIFY_OK;
 }
@@ -1213,14 +1214,6 @@ static int bq25890_probe(struct i2c_client *client,
 		return client->irq;
 	}
 
-	/* OTG reporting */
-	if (!IS_ERR_OR_NULL(bq->usb_phy)) {
-		dev_dbg(bq->dev, "usb phy: %s\n", bq->usb_phy->label);
-		INIT_WORK(&bq->usb_work, bq25890_usb_work);
-		bq->usb_nb.notifier_call = bq25890_usb_notifier;
-		usb_register_notifier(bq->usb_phy, &bq->usb_nb);
-	}
-
 	ret = devm_request_threaded_irq(dev, client->irq, NULL,
 					bq25890_irq_handler_thread,
 					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -1238,6 +1231,17 @@ static int bq25890_probe(struct i2c_client *client,
 	if (ret < 0) {
 		dev_err(dev, "Failed to register vbus regulator\n");
 		goto irq_fail;
+	}
+
+	/* OTG reporting */
+	if (!IS_ERR_OR_NULL(bq->usb_phy)) {
+		dev_dbg(bq->dev, "usb phy: %s\n", bq->usb_phy->label);
+		INIT_DELAYED_WORK(&bq->usb_work, bq25890_usb_work);
+		bq->usb_nb.notifier_call = bq25890_usb_notifier;
+		usb_register_notifier(bq->usb_phy, &bq->usb_nb);
+
+		/* For initial state sync */
+		queue_delayed_work(system_power_efficient_wq, &bq->usb_work, HZ);
 	}
 
 	return 0;
