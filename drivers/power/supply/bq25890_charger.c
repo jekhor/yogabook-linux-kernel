@@ -82,6 +82,8 @@ struct bq25890_init_data {
 	u8 ilim_en;	/* enable ILIM pin		*/
 	u8 treg;	/* thermal regulation threshold */
 	u8 iinlim_max;	/* maximum input current limit allowed */
+	u8 auto_dpdpm_en; /* enable auto charger type detection
+			    and input current limit control */
 };
 
 struct bq25890_state {
@@ -681,6 +683,7 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_BOOSTF,	 bq->init_data.boostf},
 		{F_EN_ILIM,	 bq->init_data.ilim_en},
 		{F_TREG,	 bq->init_data.treg},
+		{F_AUTO_DPDM_EN, bq->init_data.auto_dpdpm_en},
 		{F_IINLIM,	 bq->init_data.iinlim_max},
 	};
 
@@ -1116,6 +1119,7 @@ static int bq25890_fw_probe(struct bq25890_device *bq)
 
 	init->ilim_en = device_property_read_bool(bq->dev, "ti,use-ilim-pin");
 	init->boostf = device_property_read_bool(bq->dev, "ti,boost-low-freq");
+	init->auto_dpdpm_en = !device_property_read_bool(bq->dev, "ti,disable-charger-type-detection");
 
 	return 0;
 }
