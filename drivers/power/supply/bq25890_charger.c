@@ -953,8 +953,20 @@ static void bq25890_usb_work(struct work_struct *data)
 		if (ret < 0)
 			goto error;
 
+		/* Prevent OTG overloading at start */
+		ret = bq25890_field_write(bq, F_BOOSTI, bq25890_find_idx(2100000, TBL_BOOSTI));
+		if (ret < 0)
+			goto error;
+
 		/* Enable boost mode */
 		ret = bq25890_field_write(bq, F_OTG_CFG, 1);
+		if (ret < 0)
+			goto error;
+
+		msleep(500);
+
+		/* Set OTG current limit to configured value */
+		ret = bq25890_field_write(bq, F_BOOSTI, bq->init_data.boosti);
 		if (ret < 0)
 			goto error;
 
