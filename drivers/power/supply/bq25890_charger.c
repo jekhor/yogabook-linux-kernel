@@ -111,6 +111,7 @@ struct bq25890_device {
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_nb;
 	struct delayed_work usb_work;
+	struct delayed_work charge_boost_work;
 	unsigned long usb_event;
 
 	struct regmap *rmap;
@@ -403,6 +404,17 @@ static bool bq25890_is_adc_property(enum power_supply_property psp)
 }
 
 static irqreturn_t __bq25890_handle_irq(struct bq25890_device *bq);
+
+static int bq25890_get_input_voltage(struct bq25890_device *bq)
+{
+	int ret;
+
+	ret = bq25890_field_read(bq, F_VBUSV);
+	if (ret < 0)
+		return ret;
+
+	return ret * 100 + 2600;
+}
 
 static int bq25890_power_supply_get_property(struct power_supply *psy,
 					     enum power_supply_property psp,
@@ -869,6 +881,53 @@ static int bq25890_power_supply_init(struct bq25890_device *bq)
 	return PTR_ERR_OR_ZERO(bq->charger);
 }
 
+
+static void bq25890_charge_boost_work(struct work_struct *data)
+{
+	int ret;
+	struct bq25890_device *bq =
+			container_of(data, struct bq25890_device, charge_boost_work.work);
+	int voltage;
+	int i;
+
+	dev_dbg(bq->dev, "Start to request input voltage increasing\n");
+
+	/* Enable current pulse voltage control protocol */
+	ret = bq25890_field_write(bq, F_PUMPX_EN, 1);
+	if (ret < 0)
+		goto error;
+
+	for (i = 0; i < 6; i++) {
+		voltage = bq25890_get_input_voltage(bq);
+		if (voltage < 0)
+			goto error;
+		dev_dbg(bq->dev, "input voltage = %d mV\n", voltage);
+
+		if (voltage >= 11000)
+			break;
+
+		ret = bq25890_field_write(bq, F_PUMPX_UP, 1);
+		if (ret < 0)
+			goto error;
+
+		while (bq25890_field_read(bq, F_PUMPX_UP) == 1)
+			msleep(100);
+	}
+
+	bq25890_field_write(bq, F_PUMPX_EN, 0);
+
+	voltage = bq25890_get_input_voltage(bq);
+	if (voltage < 0)
+		goto error;
+
+	dev_info(bq->dev, "Hi-voltage charging requested, input voltage is %d mV\n",
+			voltage);
+
+	return;
+error:
+	dev_err(bq->dev, "Failed to request hi-voltage charging\n");
+}
+
 static void bq25890_usb_work(struct work_struct *data)
 {
 	int ret;
@@ -953,6 +1012,13 @@ static void bq25890_usb_work(struct work_struct *data)
 
 		dev_dbg(bq->dev, "Set input current limit to %u mA (IINLIM=0x%x)\n",
 				bq25890_find_val(iinlim, TBL_IINLIM) / 1000, iinlim);
+
+		dev_dbg(bq->dev, "charger type is %d\n", phy->chg_type);
+
+		if (phy->chg_type == DCP_TYPE) {
+			dev_dbg(bq->dev, "Queue charge_boost_work\n");
+			queue_delayed_work(system_power_efficient_wq, &bq->charge_boost_work, 5 * HZ);
+		}
 		break;
 
 	default:
@@ -1128,6 +1194,7 @@ static int bq25890_probe(struct i2c_client *client,
 	bq->dev = dev;
 
 	mutex_init(&bq->lock);
+	INIT_DELAYED_WORK(&bq->charge_boost_work, bq25890_charge_boost_work);
 
 	bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB2);
 	printk("bq->usb_phy = 0x%p, is error or null: %d (%ld)\n", bq->usb_phy, IS_ERR_OR_NULL(bq->usb_phy), PTR_ERR(bq->usb_phy));
