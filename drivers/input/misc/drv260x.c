@@ -7,6 +7,8 @@
  * Copyright:   (C) 2014 Texas Instruments, Inc.
  */
 
+#define DEBUG
+
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/module.h>
@@ -15,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/regulator/consumer.h>
+#include <linux/acpi.h>
 
 #include <dt-bindings/input/ti-drv260x.h>
 
@@ -273,6 +276,8 @@ static int drv260x_haptics_play(struct input_dev *input, void *data,
 {
 	struct drv260x_data *haptics = input_get_drvdata(input);
 
+	dev_dbg(&haptics->client->dev, "%s\n", __func__);
+
 	haptics->mode = DRV260X_LRA_NO_CAL_MODE;
 
 	if (effect->u.rumble.strong_magnitude > 0)
@@ -341,10 +346,45 @@ static const struct reg_sequence drv260x_erm_cal_regs[] = {
 	{ DRV260X_CTRL4, DRV260X_AUTOCAL_TIME_500MS },
 };
 
+struct drv260x_id_map {
+	unsigned int id;
+	char *name;
+};
+
+static struct drv260x_id_map drv_260x_devids[] = {
+	{3, "DRV2605"},
+	{4, "DRV2604"},
+	{6, "DRV2604L"},
+	{7, "DRV2605L"},
+};
+
+static char *drv260x_get_model(unsigned int id)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(drv_260x_devids); i++)
+		if (id == drv_260x_devids[i].id)
+			return drv_260x_devids[i].name;
+
+	return NULL;
+}
+
 static int drv260x_init(struct drv260x_data *haptics)
 {
 	int error;
 	unsigned int cal_buf;
+	unsigned long timeout;
+
+	error = regmap_read(haptics->regmap, DRV260X_STATUS, &cal_buf);
+	if (error) {
+		dev_err(&haptics->client->dev,
+				"Failed to read DRV260X_status register: %d\n",
+				error);
+		return error;
+	}
+
+	dev_info(&haptics->client->dev, "ID: %u (%s)\n", cal_buf >> 5,
+			drv260x_get_model(cal_buf >> 5));
 
 	error = regmap_write(haptics->regmap,
 			     DRV260X_RATED_VOLT, haptics->rated_voltage);
@@ -434,6 +474,8 @@ static int drv260x_init(struct drv260x_data *haptics)
 		return error;
 	}
 
+	dev_dbg(&haptics->client->dev, "Waiting for GO...\n");
+	timeout = jiffies + 10*HZ;
 	do {
 		error = regmap_read(haptics->regmap, DRV260X_GO, &cal_buf);
 		if (error) {
@@ -442,7 +484,12 @@ static int drv260x_init(struct drv260x_data *haptics)
 				error);
 			return error;
 		}
+		if (jiffies - timeout <= 0) {
+			dev_err(&haptics->client->dev, "GO timeout\n");
+			break;
+		}
 	} while (cal_buf == DRV260X_GO_BIT);
+	dev_dbg(&haptics->client->dev, "done\n");
 
 	return 0;
 }
@@ -471,20 +518,21 @@ static int drv260x_probe(struct i2c_client *client,
 
 	error = device_property_read_u32(dev, "mode", &haptics->mode);
 	if (error) {
-		dev_err(dev, "Can't fetch 'mode' property: %d\n", error);
-		return error;
+		dev_err(dev, "Can't fetch 'mode' property: %d, use LRA\n",
+				error);
+		haptics->mode = DRV260X_LRA_MODE;
 	}
 
 	if (haptics->mode < DRV260X_LRA_MODE ||
 	    haptics->mode > DRV260X_ERM_MODE) {
 		dev_err(dev, "Vibrator mode is invalid: %i\n", haptics->mode);
-		return -EINVAL;
 	}
 
 	error = device_property_read_u32(dev, "library-sel", &haptics->library);
 	if (error) {
-		dev_err(dev, "Can't fetch 'library-sel' property: %d\n", error);
-		return error;
+		dev_err(dev, "Can't fetch 'library-sel' property: %d, use LRA\n",
+				error);
+		haptics->library = DRV260X_LIB_LRA;
 	}
 
 	if (haptics->library < DRV260X_LIB_EMPTY ||
@@ -525,6 +573,13 @@ static int drv260x_probe(struct i2c_client *client,
 
 	haptics->enable_gpio = devm_gpiod_get_optional(dev, "enable",
 						       GPIOD_OUT_HIGH);
+
+	/* Request first GPIO from ACPI _CRS description */
+	if (!haptics->enable_gpio)
+		haptics->enable_gpio = devm_gpiod_get_index_optional(dev,
+				NULL, 0, GPIOD_OUT_HIGH);
+
+	dev_dbg(dev, "Enable gpio = 0x%p\n", haptics->enable_gpio);
 	if (IS_ERR(haptics->enable_gpio))
 		return PTR_ERR(haptics->enable_gpio);
 
@@ -644,6 +699,14 @@ static const struct i2c_device_id drv260x_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, drv260x_id);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id drv260x_acpi_match[] = {
+	{ "DRV2604", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, drv260x_acpi_match);
+#endif
+
 static const struct of_device_id drv260x_of_match[] = {
 	{ .compatible = "ti,drv2604", },
 	{ .compatible = "ti,drv2604l", },
@@ -658,6 +721,7 @@ static struct i2c_driver drv260x_driver = {
 	.driver		= {
 		.name	= "drv260x-haptics",
 		.of_match_table = drv260x_of_match,
+		.acpi_match_table = ACPI_PTR(drv260x_acpi_match),
 		.pm	= &drv260x_pm_ops,
 	},
 	.id_table = drv260x_id,
