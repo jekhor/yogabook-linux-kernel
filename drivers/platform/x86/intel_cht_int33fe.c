@@ -93,6 +93,17 @@ static const struct property_entry fusb302_props[] = {
 	{ }
 };
 
+static const struct dmi_system_id yogabook_ids[] = {
+	{
+		.ident = "Lenovo Yogabook",
+		/* YB1-X91L/F and YB1-X90L/F */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9")
+		}
+	},
+	{}
+};
+
 static int cht_int33fe_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -134,7 +145,7 @@ static int cht_int33fe_probe(struct platform_device *pdev)
 	 * have FUSB302, max17047 and pi3usb30532 definitions. Disable the driver
 	 * for this notebook until its ACPI methods will be needed */
 	product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
-	if (product_name && !strcmp(product_name, "Lenovo YB1-X91L")) {
+	if (dmi_check_system(yogabook_ids)) {
 		dev_info(dev, "Lenovo Yoga Book detected, register only "
 				"BQ27542 battery Fuel Gauge for it\n");
 

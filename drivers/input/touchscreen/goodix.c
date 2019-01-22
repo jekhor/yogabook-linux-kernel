@@ -151,8 +151,9 @@ static const struct dmi_system_id nine_bytes_report[] = {
 #if defined(CONFIG_DMI) && defined(CONFIG_X86)
 	{
 		.ident = "Lenovo YogaBook",
+		/* YB1-X91L/F and YB1-X90L/F */
 		.matches = {
-			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X91L")
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9")
 		}
 	},
 #endif
