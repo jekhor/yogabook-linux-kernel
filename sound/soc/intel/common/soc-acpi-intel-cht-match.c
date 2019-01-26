@@ -82,6 +82,15 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 		.asoc_plat_name = "sst-mfld-platform",
 	},
 	{
+		.id = "10EC5677",
+		.drv_name = "cht-bsw-rt5677",
+		.fw_filename = "intel/fw_sst_22a8.bin",
+		.board = "cht-bsw",
+		.sof_fw_filename = "intel/sof-cht.ri",
+		.sof_tplg_filename = "intel/sof-cht-rt5677.tplg",
+		.asoc_plat_name = "sst-mfld-platform",
+	},
+	{
 		.id = "10EC5645",
 		.drv_name = "cht-bsw-rt5645",
 		.fw_filename = "intel/fw_sst_22a8.bin",
