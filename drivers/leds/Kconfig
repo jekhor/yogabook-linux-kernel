@@ -132,6 +132,14 @@ config LEDS_CR0014114
 	  To compile this driver as a module, choose M here: the module
 	  will be called leds-cr0014114.
 
+config LEDS_CHT_WCOVE
+	tristate "LED support for Intel Cherry Trail Whiskey Cove PMIC"
+	depends on LEDS_CLASS
+	depends on INTEL_SOC_PMIC_CHTWC
+	help
+	  This option enables support for charger and general purpose LEDs
+	  connected to the Intel Cherrytrail Whiskey Cove PMIC.
+
 config LEDS_LM3530
 	tristate "LCD Backlight driver for LM3530"
 	depends on LEDS_CLASS
