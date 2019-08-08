@@ -920,15 +920,15 @@ config ACPI_CMPC
 	  keys as input device, backlight device, tablet and accelerometer
 	  devices.
 
-config INTEL_CHT_INT33FE
-	tristate "Intel Cherry Trail ACPI INT33FE Driver"
+config INTEL_CHT_INT33FE_TYPEC
+	tristate "Intel Cherry Trail ACPI INT33FE Driver (typeC connector)"
 	depends on X86 && ACPI && I2C && REGULATOR
 	depends on CHARGER_BQ24190=y || (CHARGER_BQ24190=m && m)
 	depends on USB_ROLES_INTEL_XHCI=y || (USB_ROLES_INTEL_XHCI=m && m)
 	depends on TYPEC_MUX_PI3USB30532=y || (TYPEC_MUX_PI3USB30532=m && m)
-	---help---
+	help
 	  This driver add support for the INT33FE ACPI device found on
-	  some Intel Cherry Trail devices.
+	  some Intel Cherry Trail devices with USB TypeC connector.
 
 	  The INT33FE ACPI device has a CRS table with I2cSerialBusV2
 	  resources for 3 devices: Maxim MAX17047 Fuel Gauge Controller,
@@ -938,6 +938,23 @@ config INTEL_CHT_INT33FE
 
 	  If you enable this driver it is advised to also select
 	  CONFIG_TYPEC_FUSB302=m and CONFIG_BATTERY_MAX17042=m.
+
+config INTEL_CHT_INT33FE_TYPEB
+	tristate "Intel Cherry Trail ACPI INT33FE Driver (type B or AB connector)"
+	depends on X86 && ACPI && I2C
+	depends on USB_ROLES_INTEL_XHCI=y || (USB_ROLES_INTEL_XHCI=m && m)
+	help
+	  This driver add support for the INT33FE ACPI device found on
+	  some Intel Cherry Trail devices with micro- or mini- USB B or AB
+	  connector (supports charger connection to it) .
+
+	  The INT33FE ACPI device has a CRS table with I2cSerialBusV2
+	  resources for TI BQ27452 Fuel Gauge Controller.
+	  This driver instantiates i2c-client for it, so that standard
+	  i2c driver for these chip can bind to the it.
+
+	  If you enable this driver it is advised to also select
+	  CONFIG_BATTERY_BQ27XXX=m and CONFIG_BATTERY_BQ27XXX_I2C=m.
 
 config INTEL_INT0002_VGPIO
 	tristate "Intel ACPI INT0002 Virtual GPIO driver"
