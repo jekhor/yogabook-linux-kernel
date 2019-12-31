@@ -25,6 +25,8 @@
 #define BQ25895_ID			7
 #define BQ25896_ID			0
 
+static int noreset = 0;
+
 enum bq25890_chip_version {
 	BQ25890,
 	BQ25892,
@@ -659,10 +661,16 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_VCLAMP,	 bq->init_data.vclamp},
 	};
 
-	ret = bq25890_chip_reset(bq);
-	if (ret < 0) {
-		dev_dbg(bq->dev, "Reset failed %d\n", ret);
-		return ret;
+	/* Don't reset chip at driver initialization if property 'disable-reset'
+	 * is passed by platform code */
+	if (!device_property_read_bool(bq->dev, "disable-reset") && !noreset) {
+		ret = bq25890_chip_reset(bq);
+		if (ret < 0) {
+			dev_dbg(bq->dev, "Reset failed %d\n", ret);
+			return ret;
+		}
+	} else {
+		dev_dbg(bq->dev, "Reset disabled\n");
 	}
 
 	/* disable watchdog */
@@ -1016,8 +1024,10 @@ static int bq25890_remove(struct i2c_client *client)
 	if (!IS_ERR_OR_NULL(bq->usb_phy))
 		usb_unregister_notifier(bq->usb_phy, &bq->usb_nb);
 
-	/* reset all registers to default values */
-	bq25890_chip_reset(bq);
+	if (!device_property_read_bool(bq->dev, "disable-reset") && !noreset) {
+		/* reset all registers to default values */
+		bq25890_chip_reset(bq);
+	}
 
 	return 0;
 }
@@ -1104,6 +1114,9 @@ static struct i2c_driver bq25890_driver = {
 	.id_table = bq25890_i2c_ids,
 };
 module_i2c_driver(bq25890_driver);
+
+module_param(noreset, int, S_IRUGO);
+MODULE_PARM_DESC(noreset, "Don't reset charger at init");
 
 MODULE_AUTHOR("Laurentiu Palcu <laurentiu.palcu@intel.com>");
 MODULE_DESCRIPTION("bq25890 charger driver");
