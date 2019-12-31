@@ -105,7 +105,7 @@ struct bq25890_device {
 
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_nb;
-	struct work_struct usb_work;
+	struct delayed_work usb_work;
 	unsigned long usb_event;
 
 	struct regmap *rmap;
@@ -770,25 +770,92 @@ static void bq25890_usb_work(struct work_struct *data)
 {
 	int ret;
 	struct bq25890_device *bq =
-			container_of(data, struct bq25890_device, usb_work);
+			container_of(data, struct bq25890_device, usb_work.work);
+	struct usb_phy *phy = bq->usb_phy;
+	u8 iinlim;
+	unsigned int mA;
 
-	switch (bq->usb_event) {
-	case USB_EVENT_ID:
+	printk("%s: event: %lu, vbus_role = %d, chg_state = %d\n",
+			__func__, bq->usb_event, phy->vbus_role, phy->chg_state);
+
+	if ((phy->vbus_role == USB_VBUS_SUPPLIER) &&
+			(phy->chg_state == USB_CHARGER_PRESENT))
+		dev_err(bq->dev, "Charger detected and VBUS powered is requested in same time\n");
+
+	if (phy->vbus_role == USB_VBUS_SUPPLIER) {
+		dev_dbg(bq->dev, "USB VBUS SUPPLIER,"
+				" disable charging, start to power VBUS\n");
+
+		/* Disable charging */
+		ret = bq25890_field_write(bq, F_CHG_CFG, 0);
+		if (ret < 0)
+			goto error;
+
 		/* Enable boost mode */
 		ret = bq25890_field_write(bq, F_OTG_CFG, 1);
 		if (ret < 0)
 			goto error;
+
+	} else if (phy->vbus_role == USB_VBUS_CONSUMER) {
+		dev_dbg(bq->dev, "USB VBUS CONSUMER,"
+				" disable VBUS powering\n");
+		/* Disable boost mode */
+		ret = bq25890_field_write(bq, F_OTG_CFG, 0);
+		if (ret < 0)
+			goto error;
+	}
+
+	switch (usb_phy_get_charger_state(bq->usb_phy)) {
+	case USB_CHARGER_ABSENT:
+		dev_dbg(bq->dev, "USB_CHARGER_ABSENT, disable charging\n");
+		/* Disable charging */
+		ret = bq25890_field_write(bq, F_CHG_CFG, 0);
+		if (ret < 0)
+			goto error;
+
+		/* Set input limit to minimum */
+		iinlim = bq25890_find_idx(0, TBL_IINLIM);
+
+		ret = bq25890_field_write(bq, F_IINLIM, iinlim);
+		if (ret)
+			goto error;
+
 		break;
 
-	case USB_EVENT_NONE:
+	case USB_CHARGER_PRESENT:
+		dev_dbg(bq->dev, "USB_CHARGER_PRESENT, enable charging\n");
+
+		mA = usb_phy_get_charger_current_max(bq->usb_phy);
+
+		if (mA > 3250)
+			mA = 3250;
+
+		iinlim = bq25890_find_idx(mA * 1000, TBL_IINLIM);
+
+
+		ret = bq25890_field_write(bq, F_IINLIM, iinlim);
+		if (ret)
+			goto error;
+
 		/* Disable boost mode */
 		ret = bq25890_field_write(bq, F_OTG_CFG, 0);
 		if (ret < 0)
 			goto error;
 
-		power_supply_changed(bq->charger);
+		/* Enable charging */
+		ret = bq25890_field_write(bq, F_CHG_CFG, 1);
+		if (ret < 0)
+			goto error;
+
+		dev_dbg(bq->dev, "Set input current limit to %u mA (IINLIM=0x%x)\n",
+				bq25890_find_val(iinlim, TBL_IINLIM) / 1000, iinlim);
 		break;
+
+	default:
+		dev_dbg(bq->dev, "Unknown USB charger state %u\n", phy->chg_state);
 	}
+
+	power_supply_changed(bq->charger);
 
 	return;
 
@@ -803,7 +870,8 @@ static int bq25890_usb_notifier(struct notifier_block *nb, unsigned long val,
 			container_of(nb, struct bq25890_device, usb_nb);
 
 	bq->usb_event = val;
-	queue_work(system_power_efficient_wq, &bq->usb_work);
+	/* Delay to make chance to handle number of events by one call */
+	queue_delayed_work(system_power_efficient_wq, &bq->usb_work, HZ);
 
 	return NOTIFY_OK;
 }
@@ -1003,14 +1071,6 @@ static int bq25890_probe(struct i2c_client *client,
 		return client->irq;
 	}
 
-	/* OTG reporting */
-	bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB2);
-	if (!IS_ERR_OR_NULL(bq->usb_phy)) {
-		INIT_WORK(&bq->usb_work, bq25890_usb_work);
-		bq->usb_nb.notifier_call = bq25890_usb_notifier;
-		usb_register_notifier(bq->usb_phy, &bq->usb_nb);
-	}
-
 	ret = devm_request_threaded_irq(dev, client->irq, NULL,
 					bq25890_irq_handler_thread,
 					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -1022,6 +1082,23 @@ static int bq25890_probe(struct i2c_client *client,
 	if (ret < 0) {
 		dev_err(dev, "Failed to register power supply\n");
 		goto irq_fail;
+	}
+
+	ret = bq25890_register_vbus_regulator(bq);
+	if (ret < 0) {
+		dev_err(dev, "Failed to register vbus regulator\n");
+		goto irq_fail;
+	}
+
+	/* OTG reporting */
+	if (!IS_ERR_OR_NULL(bq->usb_phy)) {
+		dev_dbg(bq->dev, "usb phy: %s\n", bq->usb_phy->label);
+		INIT_DELAYED_WORK(&bq->usb_work, bq25890_usb_work);
+		bq->usb_nb.notifier_call = bq25890_usb_notifier;
+		usb_register_notifier(bq->usb_phy, &bq->usb_nb);
+
+		/* For initial state sync */
+		queue_delayed_work(system_power_efficient_wq, &bq->usb_work, HZ);
 	}
 
 	return 0;
