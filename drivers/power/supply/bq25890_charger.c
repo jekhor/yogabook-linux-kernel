@@ -87,6 +87,7 @@ struct bq25890_init_data {
 	u8 treg;	/* thermal regulation threshold */
 	u8 rbatcomp;	/* IBAT sense resistor value    */
 	u8 vclamp;	/* IBAT compensation voltage limit */
+	u8 iinlim_max;	/* maximum input current limit allowed */
 };
 
 struct bq25890_state {
@@ -659,6 +660,7 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_TREG,	 bq->init_data.treg},
 		{F_BATCMP,	 bq->init_data.rbatcomp},
 		{F_VCLAMP,	 bq->init_data.vclamp},
+		{F_IINLIM,	 bq->init_data.iinlim_max},
 	};
 
 	/* Don't reset chip at driver initialization if property 'disable-reset'
@@ -832,6 +834,7 @@ static void bq25890_usb_work(struct work_struct *data)
 
 		iinlim = bq25890_find_idx(mA * 1000, TBL_IINLIM);
 
+		iinlim = min(bq->init_data.iinlim_max, iinlim);
 
 		ret = bq25890_field_write(bq, F_IINLIM, iinlim);
 		if (ret)
@@ -964,11 +967,13 @@ static int bq25890_fw_read_u32_props(struct bq25890_device *bq)
 		{"ti,thermal-regulation-threshold", true, TBL_TREG, &init->treg},
 		{"ti,ibatcomp-micro-ohms", true, TBL_RBATCOMP, &init->rbatcomp},
 		{"ti,ibatcomp-clamp-microvolt", true, TBL_VBATCOMP, &init->vclamp},
+		{"ti,input-max-current", true, TBL_IINLIM, &init->iinlim_max},
 	};
 
 	/* initialize data for optional properties */
 	init->treg = 3; /* 120 degrees Celsius */
 	init->rbatcomp = init->vclamp = 0; /* IBAT compensation disabled */
+	init->iinlim_max = 0x3f;
 
 	for (i = 0; i < ARRAY_SIZE(props); i++) {
 		ret = device_property_read_u32(bq->dev, props[i].name,
