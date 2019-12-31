@@ -1022,6 +1022,14 @@ static int bq25890_probe(struct i2c_client *client,
 
 	mutex_init(&bq->lock);
 
+	bq->usb_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB2);
+	printk("bq->usb_phy = 0x%p, is error or null: %d (%ld)\n", bq->usb_phy, IS_ERR_OR_NULL(bq->usb_phy), PTR_ERR(bq->usb_phy));
+	dev_dbg(bq->dev, "wait-for-usbphy dev property: %d\n", device_property_read_bool(bq->dev, "wait-for-usbphy"));
+	/* Defer probing if USB PHY still not ready */
+	if (IS_ERR_OR_NULL(bq->usb_phy)
+			&& device_property_read_bool(bq->dev, "wait-for-usbphy"))
+			return -EPROBE_DEFER;
+
 	bq->rmap = devm_regmap_init_i2c(client, &bq25890_regmap_config);
 	if (IS_ERR(bq->rmap)) {
 		dev_err(dev, "failed to allocate register map\n");
