@@ -735,6 +735,24 @@ static const struct power_supply_desc bq25890_power_supply_desc = {
 	.get_property = bq25890_power_supply_get_property,
 };
 
+
+static ssize_t bq25890_show_input_voltage(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	struct bq25890_device *bq = dev_get_drvdata(dev);
+	int ret;
+
+	ret = bq25890_field_read(bq, F_VBUSV);
+	if (ret < 0)
+		return ret;
+
+	return scnprintf(buf, PAGE_SIZE, "%u", ret * 100000 + 2600000);
+}
+
+DEVICE_ATTR(input_voltage_now, S_IRUGO, bq25890_show_input_voltage, NULL);
+
+
 static int bq25890_power_supply_init(struct bq25890_device *bq)
 {
 	struct power_supply_config psy_cfg = { .drv_data = bq, };
