@@ -90,6 +90,8 @@ struct bq25890_init_data {
 	u8 rbatcomp;	/* IBAT sense resistor value    */
 	u8 vclamp;	/* IBAT compensation voltage limit */
 	u8 iinlim_max;	/* maximum input current limit allowed */
+	u8 auto_dpdpm_en; /* enable auto charger type detection
+			    and input current limit control */
 };
 
 struct bq25890_state {
@@ -662,6 +664,7 @@ static int bq25890_hw_init(struct bq25890_device *bq)
 		{F_TREG,	 bq->init_data.treg},
 		{F_BATCMP,	 bq->init_data.rbatcomp},
 		{F_VCLAMP,	 bq->init_data.vclamp},
+		{F_AUTO_DPDM_EN, bq->init_data.auto_dpdpm_en},
 		{F_IINLIM,	 bq->init_data.iinlim_max},
 	};
 
@@ -1104,6 +1107,7 @@ static int bq25890_fw_probe(struct bq25890_device *bq)
 
 	init->ilim_en = device_property_read_bool(bq->dev, "ti,use-ilim-pin");
 	init->boostf = device_property_read_bool(bq->dev, "ti,boost-low-freq");
+	init->auto_dpdpm_en = !device_property_read_bool(bq->dev, "ti,disable-charger-type-detection");
 
 	return 0;
 }
