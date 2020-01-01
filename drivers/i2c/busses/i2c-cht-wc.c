@@ -297,6 +297,7 @@ static const struct property_entry bq25892_props[] = {
 //	PROPERTY_ENTRY_BOOL("ti,boost-low-freq"),
 	PROPERTY_ENTRY_BOOL("disable-reset"),
 	PROPERTY_ENTRY_BOOL("wait-for-usbphy"),
+	PROPERTY_ENTRY_BOOL("ti,disable-charger-type-detection"),
 	{}
 };
 
