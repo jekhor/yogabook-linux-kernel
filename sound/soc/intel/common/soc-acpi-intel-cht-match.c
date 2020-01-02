@@ -74,8 +74,8 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 		.drv_name = "cht-bsw-rt5677",
 		.fw_filename = "intel/fw_sst_22a8.bin",
 		.board = "cht-bsw",
-		.sof_fw_filename = "intel/sof-cht.ri",
-		.sof_tplg_filename = "intel/sof-cht-rt5677.tplg",
+		.sof_fw_filename = "sof-cht.ri",
+		.sof_tplg_filename = "sof-cht-rt5677.tplg",
 	},
 	{
 		.id = "10EC5645",
