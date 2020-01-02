@@ -1106,12 +1106,13 @@ static int bq25890_get_chip_version(struct bq25890_device *bq)
 	/* BQ25892 and BQ25896 share same ID 0 */
 	case BQ25896_ID:
 		switch (rev) {
-		case 0:
-			bq->chip_version = BQ25896;
-			break;
 		case 1:
 			bq->chip_version = BQ25892;
 			break;
+		case 2:
+			bq->chip_version = BQ25896;
+			break;
+
 		default:
 			dev_err(bq->dev,
 				"Unknown device revision %d, assume BQ25892\n",
