@@ -5637,7 +5637,13 @@ static int rt5677_i2c_probe(struct i2c_client *i2c)
 		return ret;
 	}
 
-	regmap_read(rt5677->regmap, RT5677_VENDOR_ID2, &val);
+	ret = regmap_read(rt5677->regmap, RT5677_VENDOR_ID2, &val);
+	if (ret) {
+		dev_err(&i2c->dev,
+			"Failed to read ID register: %d\n", ret);
+		return -ENODEV;
+	}
+
 	if (val != RT5677_DEVICE_ID) {
 		dev_err(&i2c->dev,
 			"Device with ID register %#x is not rt5677\n", val);
