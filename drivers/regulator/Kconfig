@@ -1423,5 +1423,13 @@ config REGULATOR_QCOM_LABIBB
 	  boost regulator and IBB can be used as a negative boost regulator
 	  for LCD display panel.
 
+config REGULATOR_WHISKEY_COVE
+        tristate "Voltage regulator driver for WHISKEY COVE Power Management IC"
+        help
+          Select for the voltage regulator driver on WHISKEY_COVE PMIC.
+          WHISKEY COVE pmic is used in some variation of CHT platform.
+          Choose this if platform has WHISKEY COVE pmic and you need
+          voltage regulator driver.
+
 endif
 

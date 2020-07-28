@@ -17,6 +17,7 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/intel_soc_pmic.h>
 #include <linux/regmap.h>
+#include <linux/regulator/intel_whiskey_cove_pmic.h>
 
 /* PMIC device registers */
 #define REG_OFFSET_MASK		GENMASK(7, 0)
@@ -61,6 +62,10 @@ static struct mfd_cell cht_wc_dev[] = {
 	},
 	{	.name = "cht_wcove_region", },
 	{	.name = "cht_wcove_leds", },
+
+	{	.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG1B+1,
+	},
 };
 
 /*
