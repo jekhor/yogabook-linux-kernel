@@ -18,6 +18,7 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/intel_soc_pmic.h>
 #include <linux/regmap.h>
+#include <linux/regulator/intel_whiskey_cove_pmic.h>
 
 /* PMIC device registers */
 #define REG_OFFSET_MASK		GENMASK(7, 0)
@@ -62,6 +63,118 @@ static struct mfd_cell cht_wc_dev[] = {
 	},
 	{	.name = "cht_wcove_region", },
 	{	.name = "cht_wcove_leds", },
+
+	/* cell ID is channel ID+1 because MFD calculate device id as
+	 * <platform devid>+<cell id>, where platform devid is -1 (PLATFORM_DEVID_NONE)
+	 */
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_V1P8SX + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_V1P2SX + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_V1P2A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_V2P8SX + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG1A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG1B + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG1F + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG2D + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG3A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG3B + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG4A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG4B + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG4C + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG4D + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG5A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG5B + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG6A + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "cht_wcove_regulator",
+		.id = WCOVE_ID_VPROG6B + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
 };
 
 /*
