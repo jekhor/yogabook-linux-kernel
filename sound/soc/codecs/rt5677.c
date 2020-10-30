@@ -7,6 +7,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/dmi.h>
 #include <linux/firmware.h>
 #include <linux/fs.h>
 #include <linux/i2c.h>
@@ -5530,6 +5531,36 @@ static int rt5677_init_irq(struct i2c_client *i2c)
 
 	return ret;
 }
+
+static const struct acpi_gpio_params lenovo_yb_reset_gpios = {0, 0, true};
+static const struct acpi_gpio_params lenovo_yb_ldo2_gpios = {1, 0, false};
+
+static const struct acpi_gpio_mapping lenovo_yb_gpios[] = {
+	{ "realtek,reset-gpios", &lenovo_yb_reset_gpios, 1 },
+	{ "realtek,pow-ldo2-gpios", &lenovo_yb_ldo2_gpios, 1 },
+	{},
+};
+
+static int rt5677_lenovo_yogabook_fixup(const struct dmi_system_id *id)
+{
+	struct rt5677_priv *rt5677 = id->driver_data;
+
+	if (devm_acpi_dev_add_driver_gpios(rt5677->dev, lenovo_yb_gpios))
+		dev_warn(rt5677->dev, "Unable to add GPIO mapping table\n");
+
+	return 1;
+}
+
+static struct dmi_system_id dmi_platform_data[] = {
+	{
+		.callback = rt5677_lenovo_yogabook_fixup,
+		.ident = "Lenovo YogaBook YB1-X91",
+		/* YB1-X91L/F */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X91"),
+		},
+	},
+};
 
 static int rt5677_i2c_probe(struct i2c_client *i2c)
 {
