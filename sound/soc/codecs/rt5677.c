@@ -5560,6 +5560,48 @@ static int rt5677_init_irq(struct i2c_client *i2c)
 	return ret;
 }
 
+static const struct acpi_gpio_params lenovo_yb_reset_gpios = {0, 0, true};
+static const struct acpi_gpio_params lenovo_yb_ldo2_gpios = {1, 0, false};
+
+static const struct acpi_gpio_mapping lenovo_yb_gpios[] = {
+	{ "realtek,reset-gpios", &lenovo_yb_reset_gpios, 1 },
+	{ "realtek,pow-ldo2-gpios", &lenovo_yb_ldo2_gpios, 1 },
+	{},
+};
+
+static const struct property_entry lenovo_yb_properties[] = {
+	PROPERTY_ENTRY_BOOL("realtek,lout1-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,lout2-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,lout3-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,in1-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,in2-differential"),
+	{}
+};
+
+static int rt5677_lenovo_yogabook_fixup(const struct dmi_system_id *id)
+{
+	struct rt5677_priv *rt5677 = id->driver_data;
+
+	if (devm_acpi_dev_add_driver_gpios(rt5677->dev, lenovo_yb_gpios))
+		dev_warn(rt5677->dev, "Unable to add GPIO mapping table\n");
+
+	if (device_add_properties(rt5677->dev, lenovo_yb_properties))
+		dev_warn(rt5677->dev, "Unable to add device properties\n");;
+
+	return 1;
+}
+
+static struct dmi_system_id dmi_platform_data[] = {
+	{
+		.callback = rt5677_lenovo_yogabook_fixup,
+		.ident = "Lenovo YogaBook",
+		/* YB1-X91L/F and YB1-X90L/F */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9"),
+		},
+	},
+};
+
 static int rt5677_i2c_probe(struct i2c_client *i2c)
 {
 	struct rt5677_priv *rt5677;
