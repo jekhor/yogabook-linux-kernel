@@ -71,6 +71,7 @@ static const struct reg_sequence init_list[] = {
 	{RT5677_PR_BASE + 0x15,	0x0490},
 	{RT5677_PR_BASE + 0x38,	0x0f71},
 	{RT5677_PR_BASE + 0x39,	0x0f71},
+	{RT5677_DMIC_CTRL1,	0x2505},
 };
 #define RT5677_INIT_REG_LEN ARRAY_SIZE(init_list)
 
@@ -771,7 +772,7 @@ static unsigned int rt5677_set_vad_source(struct rt5677_priv *rt5677)
 	 */
 	regmap_update_bits(rt5677->regmap, RT5677_PWR_ANLG1,
 		RT5677_LDO1_SEL_MASK | RT5677_LDO2_SEL_MASK,
-		5 << RT5677_LDO1_SEL_SFT | 5 << RT5677_LDO2_SEL_SFT);
+		6 << RT5677_LDO1_SEL_SFT | 5 << RT5677_LDO2_SEL_SFT);
 
 	/* Codec core power =  power on
 	 * LDO1 power = power on
@@ -4657,7 +4658,7 @@ static int rt5677_set_bias_level(struct snd_soc_component *component,
 
 			regmap_update_bits(rt5677->regmap, RT5677_PWR_ANLG1,
 				RT5677_LDO1_SEL_MASK | RT5677_LDO2_SEL_MASK,
-				5 << RT5677_LDO1_SEL_SFT |
+				6 << RT5677_LDO1_SEL_SFT |
 				5 << RT5677_LDO2_SEL_SFT);
 			regmap_update_bits(rt5677->regmap,
 				RT5677_PR_BASE + RT5677_BIAS_CUR4,
