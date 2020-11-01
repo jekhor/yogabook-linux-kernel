@@ -141,6 +141,17 @@ config SND_SOC_INTEL_CHT_BSW_RT5672_MACH
 	  Say Y or m if you have such a device. This is a recommended option.
 	  If unsure select "N".
 
+config SND_SOC_INTEL_CHT_YOGABOOK_MACH
+	tristate "Cherrytrail-based Lenovo Yoga Book tablet"
+	depends on X86_INTEL_LPSS && I2C && ACPI
+	select SND_SOC_ACPI
+	select SND_SOC_RT5677
+        help
+          This adds support for ASoC machine driver for the Lenovo Yoga Book
+	  tablet based on CherryTrail platform with RT5677 audio codec.
+          Say Y or m if you have such a device. This is a recommended option.
+          If unsure select "N".
+
 config SND_SOC_INTEL_CHT_BSW_RT5645_MACH
 	tristate "Cherrytrail & Braswell with RT5645/5650 codec"
 	depends on I2C && ACPI
