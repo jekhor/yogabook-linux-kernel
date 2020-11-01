@@ -7,6 +7,7 @@
  */
 
 #include <linux/acpi.h>
+#include <linux/dmi.h>
 #include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -5605,8 +5606,9 @@ static struct dmi_system_id dmi_platform_data[] = {
 static int rt5677_i2c_probe(struct i2c_client *i2c)
 {
 	struct rt5677_priv *rt5677;
-	int ret;
 	unsigned int val;
+	int ret;
+	int i;
 
 	rt5677 = devm_kzalloc(&i2c->dev, sizeof(struct rt5677_priv),
 				GFP_KERNEL);
@@ -5634,6 +5636,11 @@ static int rt5677_i2c_probe(struct i2c_client *i2c)
 		return -EINVAL;
 	}
 
+	for (i = 0; i < ARRAY_SIZE(dmi_platform_data); i++)
+		dmi_platform_data[i].driver_data = rt5677;
+
+	dmi_check_system(dmi_platform_data);
+
 	rt5677_read_device_properties(rt5677, &i2c->dev);
 
 	/* pow-ldo2 and reset are optional. The codec pins may be statically
@@ -5642,17 +5649,28 @@ static int rt5677_i2c_probe(struct i2c_client *i2c)
 	 */
 	rt5677->pow_ldo2 = devm_gpiod_get_optional(&i2c->dev,
 			"realtek,pow-ldo2", GPIOD_OUT_HIGH);
+
 	if (IS_ERR(rt5677->pow_ldo2)) {
 		ret = PTR_ERR(rt5677->pow_ldo2);
 		dev_err(&i2c->dev, "Failed to request POW_LDO2: %d\n", ret);
 		return ret;
 	}
+
 	rt5677->reset_pin = devm_gpiod_get_optional(&i2c->dev,
-			"realtek,reset", GPIOD_OUT_LOW);
+			"realtek,reset", GPIOD_OUT_HIGH);
+
 	if (IS_ERR(rt5677->reset_pin)) {
 		ret = PTR_ERR(rt5677->reset_pin);
 		dev_err(&i2c->dev, "Failed to request RESET: %d\n", ret);
 		return ret;
+	}
+
+	if (rt5677->reset_pin) {
+		/*
+		 * To ensure clear device state, reset it.
+		 */
+		msleep(1);
+		gpiod_set_value_cansleep(rt5677->reset_pin, 0);
 	}
 
 	if (rt5677->pow_ldo2 || rt5677->reset_pin) {
