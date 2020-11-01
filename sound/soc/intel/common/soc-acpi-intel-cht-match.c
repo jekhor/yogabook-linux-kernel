@@ -9,13 +9,35 @@
 #include <sound/soc-acpi.h>
 #include <sound/soc-acpi-intel-match.h>
 
-static unsigned long cht_machine_id;
+static struct snd_soc_acpi_mach *cht_quirk_mach = NULL;
 
-#define CHT_SURFACE_MACH 1
+static struct snd_soc_acpi_mach cht_surface_mach = {
+	.id = "10EC5640",
+	.drv_name = "cht-bsw-rt5645",
+	.fw_filename = "intel/fw_sst_22a8.bin",
+	.board = "cht-bsw",
+	.sof_fw_filename = "sof-cht.ri",
+	.sof_tplg_filename = "sof-cht-rt5645.tplg",
+};
+
+static struct snd_soc_acpi_mach cht_yogabook_mach = {
+	.id = "10EC5677",
+	.drv_name = "cht-yogabook",
+	.fw_filename = "intel/fw_sst_22a8.bin",
+	.board = "cht-yogabook",
+	.sof_fw_filename = "sof-cht.ri",
+	.sof_tplg_filename = "sof-cht-rt5677.tplg",
+};
 
 static int cht_surface_quirk_cb(const struct dmi_system_id *id)
 {
-	cht_machine_id = CHT_SURFACE_MACH;
+	cht_quirk_mach = &cht_surface_mach;
+	return 1;
+}
+
+static int cht_yogabook_quirk_cb(const struct dmi_system_id *id)
+{
+	cht_quirk_mach = &cht_yogabook_mach;
 	return 1;
 }
 
@@ -27,16 +49,15 @@ static const struct dmi_system_id cht_table[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Surface 3"),
 		},
 	},
+	{
+		.callback = cht_yogabook_quirk_cb,
+		.ident = "Lenovo YogaBook",
+		/* YB1-X91L/F and YB1-X90L/F */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9"),
+		}
+	},
 	{ }
-};
-
-static struct snd_soc_acpi_mach cht_surface_mach = {
-	.id = "10EC5640",
-	.drv_name = "cht-bsw-rt5645",
-	.fw_filename = "intel/fw_sst_22a8.bin",
-	.board = "cht-bsw",
-	.sof_fw_filename = "sof-cht.ri",
-	.sof_tplg_filename = "sof-cht-rt5645.tplg",
 };
 
 static struct snd_soc_acpi_mach *cht_quirk(void *arg)
@@ -45,8 +66,8 @@ static struct snd_soc_acpi_mach *cht_quirk(void *arg)
 
 	dmi_check_system(cht_table);
 
-	if (cht_machine_id == CHT_SURFACE_MACH)
-		return &cht_surface_mach;
+	if (cht_quirk_mach != NULL)
+		return cht_quirk_mach;
 	else
 		return mach;
 }
@@ -68,6 +89,20 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 		.board = "cht-bsw",
 		.sof_fw_filename = "sof-cht.ri",
 		.sof_tplg_filename = "sof-cht-rt5670.tplg",
+	},
+	/*
+	 * The only known CherryTrail device with RT5677 is
+	 * Lenovo Yoga Book YB1-X9x, use machine quirk to override default
+	 * machine driver.
+	 */
+	{
+		.id = "10EC5677",
+		.drv_name = "cht-bsw-rt5677",
+		.fw_filename = "intel/fw_sst_22a8.bin",
+		.board = "cht-bsw",
+		.machine_quirk = cht_quirk,
+		.sof_fw_filename = "sof-cht.ri",
+		.sof_tplg_filename = "sof-cht-rt5677.tplg",
 	},
 	{
 		.id = "10EC5645",
