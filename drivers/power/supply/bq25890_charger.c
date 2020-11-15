@@ -788,7 +788,8 @@ static const struct power_supply_desc bq25890_power_supply_desc = {
 };
 
 
-#ifdef CONFIG_REGULATOR
+//#ifdef CONFIG_REGULATOR
+#if 0
 static int bq25890_vbus_enable(struct regulator_dev *dev)
 {
 	struct bq25890_device *bq = rdev_get_drvdata(dev);
