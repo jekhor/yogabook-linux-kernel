@@ -1050,7 +1050,7 @@ config INTEL_PSTORE_PRAM
 	tristate "Intel pstore RAM backend driver (PRAM BIOS feature)"
 	depends on ACPI
 	depends on PSTORE_RAM
-	---help---
+	help
 	  This driver provides RAM backend for pstore, managed by BIOS
 	  as PRAM (Persisted RAM buffer) debug feature.
 
