@@ -11,6 +11,8 @@
  * more details.
  */
 
+#define DEBUG
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
@@ -42,10 +44,10 @@ static ulong pram_ftrace_size = 2*SZ_4K;
 module_param_named(ftrace_size, pram_ftrace_size, ulong, 0400);
 MODULE_PARM_DESC(ftrace_size, "size of ftrace log");
 
-static int pram_dump_oops = 1;
-module_param_named(dump_oops, pram_dump_oops, int, 0600);
-MODULE_PARM_DESC(dump_oops,
-		 "set to 1 to dump oopses, 0 to only dump panics (default 1)");
+static int pram_max_reason = KMSG_DUMP_OOPS;
+module_param_named(max_reason, pram_max_reason, int, 0600);
+MODULE_PARM_DESC(max_reason,
+		 "maximum reason for kmsg dump (default 2: Oops and Panic) ");
 
 static int pram_ecc;
 module_param_named(ecc, pram_ecc, int, 0600);
@@ -77,7 +79,7 @@ static int register_pram_dev(unsigned long mem_address,
 	pram_data->record_size = pram_record_size;
 	pram_data->console_size = pram_console_size;
 	pram_data->ftrace_size = pram_ftrace_size;
-	pram_data->dump_oops = pram_dump_oops;
+	pram_data->max_reason = pram_max_reason;
 	/*
 	 * For backwards compatibility with previous
 	 * fs/pstore/ram_core.c implementation,
@@ -94,7 +96,7 @@ static int register_pram_dev(unsigned long mem_address,
 		return PTR_ERR(pram_dev);
 	}
 
-	pr_info("registered pram device, addr=0x%lx, size=0x%lx\n",
+	pr_info("registered pram device, addr=0x%llx, size=0x%lx\n",
 		pram_data->mem_address, pram_data->mem_size);
 
 	return 0;
@@ -133,3 +135,5 @@ static void __exit intel_pram_exit(void)
 	kfree(pram_data);
 }
 module_exit(intel_pram_exit);
+
+MODULE_LICENSE("GPL");
