@@ -1305,11 +1305,8 @@ static void acpi_wmi_notify_handler(acpi_handle handle, u32 event,
 
 		status = acpi_evaluate_object(wblock->acpi_device->handle,
 					      "_WED", &input, &evdata);
-		if (ACPI_FAILURE(status)) {
-			dev_warn(&wblock->dev.dev,
-				 "failed to get event data\n");
-			return;
-		}
+		if (ACPI_FAILURE(status))
+			evdata.pointer = NULL;
 
 		if (driver->notify)
 			driver->notify(&wblock->dev,

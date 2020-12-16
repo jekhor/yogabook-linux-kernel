@@ -383,7 +383,7 @@ static void dell_wmi_notify(struct wmi_device *wdev,
 	acpi_size buffer_size;
 	int len, i;
 
-	if (obj->type != ACPI_TYPE_BUFFER) {
+	if (!obj || (obj->type != ACPI_TYPE_BUFFER)) {
 		pr_warn("bad response type %x\n", obj->type);
 		return;
 	}
