@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/wmi.h>
 #include <linux/pm_runtime.h>
+#include <linux/leds.h>
 
 #include <uapi/linux/input-event-codes.h>
 
@@ -24,6 +25,7 @@ struct yogabook_wmi {
 	struct acpi_device *tp_adev;
 	struct acpi_device *dig_adev;
 	struct device_link *pwm_tp_link;
+	struct led_classdev kbd_bl_led;
 	bool digitizer_mode;
 	bool suspended;
 	uint8_t brightness;
@@ -142,26 +144,20 @@ static void yogabook_wmi_notify(struct wmi_device *wdev, union acpi_object *dumm
 	input_sync(data->input_dev);
 }
 
-static ssize_t kbd_brightness_show(struct device *dev,
-				   struct device_attribute *attr,
-				   char *buf)
+static enum led_brightness kbd_brightness_get(struct led_classdev *cdev)
 {
-	struct yogabook_wmi *data = dev_get_drvdata(dev);
+	struct yogabook_wmi *data =
+		container_of(cdev, struct yogabook_wmi, kbd_bl_led);
 
-	return scnprintf(buf, PAGE_SIZE, "%u\n", data->brightness);
+	return data->brightness;
 }
 
-static ssize_t kbd_brightness_store(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t len)
+static int kbd_brightness_set(struct led_classdev *cdev,
+				  enum led_brightness value)
 {
-	struct wmi_device *wdev = container_of(dev, struct wmi_device, dev);
-	struct yogabook_wmi *data = dev_get_drvdata(dev);
-	int value, r;
-
-	r = kstrtoint(buf, 0, &value);
-	if (r < 0)
-		return r;
+	struct yogabook_wmi *data =
+		container_of(cdev, struct yogabook_wmi, kbd_bl_led);
+	struct wmi_device *wdev = data->wdev;
 
 	if ((value < 0) || (value > 255))
 		return -EINVAL;
@@ -171,18 +167,8 @@ static ssize_t kbd_brightness_store(struct device *dev,
 	if (!data->digitizer_mode)
 		yogabook_wmi_set_kbd_backlight(wdev, data->brightness);
 
-	return len;
+	return 0;
 }
-static DEVICE_ATTR_RW(kbd_brightness);
-
-static struct attribute *yogabook_wmi_attributes[] = {
-	&dev_attr_kbd_brightness.attr,
-	NULL
-};
-
-static struct attribute_group yogabook_wmi_attr_group = {
-	.attrs = yogabook_wmi_attributes,
-};
 
 static int yogabook_wmi_probe(struct wmi_device *wdev, const void *context)
 {
@@ -226,10 +212,6 @@ static int yogabook_wmi_probe(struct wmi_device *wdev, const void *context)
 	dev_dbg(&wdev->dev, "device link status: %d\n", data->pwm_tp_link->status);
 */
 
-	r = sysfs_create_group(&wdev->dev.kobj, &yogabook_wmi_attr_group);
-	if (r < 0)
-		goto error_create_sysfs;
-
 	yogabook_wmi_enable_keyboard(wdev);
 
 	data->input_dev = devm_input_allocate_device(&wdev->dev);
@@ -250,11 +232,21 @@ static int yogabook_wmi_probe(struct wmi_device *wdev, const void *context)
 	if (r)
 		goto error_register_inputdev;
 
+	data->kbd_bl_led.name = "ybwmi::kbd_backlight";
+	data->kbd_bl_led.brightness_set_blocking = kbd_brightness_set;
+	data->kbd_bl_led.brightness_get = kbd_brightness_get;
+	data->kbd_bl_led.max_brightness = 255;
+
+	r = devm_led_classdev_register(&wdev->dev, &data->kbd_bl_led);
+	if (r < 0) {
+		dev_err(&wdev->dev,
+			"Cannot register LED device for backlight: %d\n", r);
+		goto error_register_inputdev;
+	}
+
 	return 0;
 
 error_register_inputdev:
-	sysfs_remove_group(&wdev->dev.kobj, &yogabook_wmi_attr_group);
-error_create_sysfs:
 //	device_link_del(data->pwm_tp_link);
 //error_device_link_add:
 	acpi_dev_put(data->dig_adev);
@@ -264,16 +256,13 @@ error_get_dig_adev:
 	return r;
 }
 
-static int yogabook_wmi_remove(struct wmi_device *wdev)
+static void yogabook_wmi_remove(struct wmi_device *wdev)
 {
 	struct yogabook_wmi *data = dev_get_drvdata(&wdev->dev);
 
-	sysfs_remove_group(&wdev->dev.kobj, &yogabook_wmi_attr_group);
 //	device_link_del(data->pwm_tp_link);
 	acpi_dev_put(data->dig_adev);
 	acpi_dev_put(data->tp_adev);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM
