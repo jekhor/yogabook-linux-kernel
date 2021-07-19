@@ -232,7 +232,7 @@ static int yogabook_wmi_probe(struct wmi_device *wdev, const void *context)
 	if (r)
 		goto error_register_inputdev;
 
-	data->kbd_bl_led.name = "ybwmi:kbd_backlight";
+	data->kbd_bl_led.name = "ybwmi::kbd_backlight";
 	data->kbd_bl_led.brightness_set_blocking = kbd_brightness_set;
 	data->kbd_bl_led.brightness_get = kbd_brightness_get;
 	data->kbd_bl_led.max_brightness = 255;
