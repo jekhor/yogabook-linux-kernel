@@ -16,7 +16,6 @@ static struct snd_soc_acpi_mach cht_surface_mach = {
 	.drv_name = "cht-bsw-rt5645",
 	.fw_filename = "intel/fw_sst_22a8.bin",
 	.board = "cht-bsw",
-	.sof_fw_filename = "sof-cht.ri",
 	.sof_tplg_filename = "sof-cht-rt5645.tplg",
 };
 
@@ -25,7 +24,6 @@ static struct snd_soc_acpi_mach cht_yogabook_mach = {
 	.drv_name = "cht-yogabook",
 	.fw_filename = "intel/fw_sst_22a8.bin",
 	.board = "cht-yogabook",
-	.sof_fw_filename = "sof-cht.ri",
 	.sof_tplg_filename = "sof-cht-rt5677.tplg",
 };
 
@@ -58,14 +56,6 @@ static const struct dmi_system_id cht_table[] = {
 		}
 	},
 	{ }
-};
-
-static struct snd_soc_acpi_mach cht_surface_mach = {
-	.id = "10EC5640",
-	.drv_name = "cht-bsw-rt5645",
-	.fw_filename = "intel/fw_sst_22a8.bin",
-	.board = "cht-bsw",
-	.sof_tplg_filename = "sof-cht-rt5645.tplg",
 };
 
 static struct snd_soc_acpi_mach *cht_quirk(void *arg)
@@ -121,7 +111,6 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 		.fw_filename = "intel/fw_sst_22a8.bin",
 		.board = "cht-bsw",
 		.machine_quirk = cht_quirk,
-		.sof_fw_filename = "sof-cht.ri",
 		.sof_tplg_filename = "sof-cht-rt5677.tplg",
 	},
 	{
