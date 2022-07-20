@@ -392,8 +392,6 @@ static int cht_codec_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *channels = hw_param_interval(params,
 						SNDRV_PCM_HW_PARAM_CHANNELS);
 
-	dev_dbg(rtd->dev, "cht_codec_fixup()\n");
-
 	/* The DSP will convert the FE rate to 48k, stereo, 24bits */
 	rate->min = rate->max = 48000;
 	channels->min = channels->max = 2;
@@ -448,7 +446,7 @@ static int cht_yb_headset_init(struct snd_soc_component *component)
 		    SND_JACK_BTN_0 | SND_JACK_BTN_1 |
 		    SND_JACK_BTN_2 | SND_JACK_BTN_3;
 
-	ret = snd_soc_card_jack_new(card, "Headset Jack", jack_type,
+	ret = snd_soc_card_jack_new_pins(card, "Headset Jack", jack_type,
 				    jack, cht_yb_jack_pins, ARRAY_SIZE(cht_yb_jack_pins));
 	if (ret) {
 		dev_err(card->dev, "Headset Jack creation failed %d\n", ret);
