@@ -8,6 +8,8 @@
  *	    Sakari Ailus <sakari.ailus@iki.fi>
  */
 
+#define DEBUG
+
 #include <linux/ioctl.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -50,6 +52,8 @@ static int subdev_open(struct file *file)
 	struct v4l2_subdev *sd = vdev_to_v4l2_subdev(vdev);
 	struct v4l2_subdev_fh *subdev_fh;
 	int ret;
+
+	pr_debug("%s: sd: %pK\n", __func__, sd);
 
 	subdev_fh = kzalloc(sizeof(*subdev_fh), GFP_KERNEL);
 	if (subdev_fh == NULL)
@@ -963,6 +967,8 @@ __v4l2_subdev_state_alloc(struct v4l2_subdev *sd, const char *lock_name,
 {
 	struct v4l2_subdev_state *state;
 	int ret;
+
+	pr_debug("%s: sd: %pK\n", __func__, sd);
 
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)

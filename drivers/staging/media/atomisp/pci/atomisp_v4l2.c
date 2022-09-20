@@ -17,6 +17,9 @@
  *
  *
  */
+
+#define DEBUG
+
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
@@ -551,10 +554,14 @@ static int atomisp_save_iunit_reg(struct atomisp_device *isp)
 static int __maybe_unused atomisp_restore_iunit_reg(struct atomisp_device *isp)
 {
 	struct pci_dev *pdev = to_pci_dev(isp->dev);
+	int err;
 
 	dev_dbg(isp->dev, "%s\n", __func__);
 
-	pci_write_config_word(pdev, PCI_COMMAND, isp->saved_regs.pcicmdsts);
+	err = pci_write_config_word(pdev, PCI_COMMAND, isp->saved_regs.pcicmdsts);
+	if (err)
+		dev_err(isp->dev, "failed to issue PCI_COMMAND: %d\n", err);
+
 	pci_write_config_dword(pdev, PCI_BASE_ADDRESS_0, isp->saved_regs.ispmmadr);
 	pci_write_config_dword(pdev, PCI_MSI_CAPID, isp->saved_regs.msicap);
 	pci_write_config_dword(pdev, PCI_MSI_ADDR, isp->saved_regs.msi_addr);
@@ -1022,6 +1029,8 @@ static int atomisp_subdev_probe(struct atomisp_device *isp)
 	}
 	/* Wait more time to give more time for subdev init code to finish */
 	msleep(5 * SUBDEV_WAIT_TIMEOUT);
+
+	dev_dbg(isp->dev, "subdevs: %px, subdevs->type: %d\n", pdata->subdevs, pdata->subdevs->type);
 
 	/* FIXME: should, instead, use I2C probe */
 

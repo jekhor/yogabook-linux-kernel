@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
+
+#define DEBUG
+
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/dmi.h>
@@ -681,7 +684,8 @@ static int gmin_subdev_add(struct gmin_subdev *gs)
 		gs->v1p8_reg = regulator_get(dev, "V1P8SX");
 		gs->v2p8_reg = regulator_get(dev, "V2P8SX");
 
-		gs->v1p2_reg = regulator_get(dev, "V1P2A");
+		gs->v1p2_reg = regulator_get(dev, "V1P2SX");
+//		gs->v1p2_reg = regulator_get(dev, "V1P2A");
 		gs->v2p8_vcm_reg = regulator_get(dev, "VPROG4B");
 
 		/* Note: ideally we would initialize v[12]p8_on to the
@@ -816,6 +820,10 @@ static int axp_v1p8_off(struct device *dev, struct gmin_subdev *gs)
 static int gmin_gpio0_ctrl(struct v4l2_subdev *subdev, int on)
 {
 	struct gmin_subdev *gs = find_gmin_subdev(subdev);
+	struct i2c_client *client = v4l2_get_subdevdata(subdev);
+	struct device *dev = &client->dev;
+
+	dev_dbg(dev, "gmin_gpio0_ctrl %d\n", on);
 
 	if (gs) {
 		gpiod_set_value(gs->gpio0, on);
@@ -827,6 +835,10 @@ static int gmin_gpio0_ctrl(struct v4l2_subdev *subdev, int on)
 static int gmin_gpio1_ctrl(struct v4l2_subdev *subdev, int on)
 {
 	struct gmin_subdev *gs = find_gmin_subdev(subdev);
+	struct i2c_client *client = v4l2_get_subdevdata(subdev);
+	struct device *dev = &client->dev;
+
+	dev_dbg(dev, "gmin_gpio1_ctrl %d\n", on);
 
 	if (gs) {
 		gpiod_set_value(gs->gpio1, on);

@@ -8390,6 +8390,7 @@ int
 ia_css_pipe_get_info(const struct ia_css_pipe *pipe,
 		     struct ia_css_pipe_info *pipe_info)
 {
+	dump_stack();
 	ia_css_debug_dtrace(IA_CSS_DEBUG_TRACE,
 			    "ia_css_pipe_get_info()\n");
 	if (!pipe_info) {
