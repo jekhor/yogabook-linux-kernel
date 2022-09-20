@@ -5,6 +5,8 @@
  * Copyright (C) 2015 Intel Corporation
  */
 
+#define DEBUG
+
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/power_supply.h>
