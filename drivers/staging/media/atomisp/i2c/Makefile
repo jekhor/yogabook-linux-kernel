@@ -5,3 +5,4 @@
 
 obj-$(CONFIG_VIDEO_ATOMISP_GC2235)     += atomisp-gc2235.o
 obj-$(CONFIG_VIDEO_ATOMISP_OV2722)     += atomisp-ov2722.o
+obj-$(CONFIG_VIDEO_ATOMISP_OV2740)     += atomisp-ov2740.o
