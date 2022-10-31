@@ -19,8 +19,6 @@
  *  General Public License for more details.
  */
 
-#define DEBUG
-
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/i2c.h>
