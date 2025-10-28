@@ -142,6 +142,44 @@ static const struct software_node lenovo_yb1_x9x_drv2604l_1_node = {
 	.properties = lenovo_yb1_x9x_drv2604l_1_props,
 };
 
+static const struct software_node lenovo_yb1_rt5677_gpiochip_node = {
+	.name = "rt5677",
+};
+
+/*
+ * Certain properties are used by the cht_yogabook sound platform driver. The sound
+ * configuration is defined as the RT5677 ACPI entry on YB1-X91; hence, the same
+ * approach is utilized for YB1-X90 as well.
+ */
+static const struct property_entry lenovo_yb1_x9x_rt5677_props[] = {
+	PROPERTY_ENTRY_BOOL("realtek,lout1-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,lout2-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,lout3-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,in1-differential"),
+	PROPERTY_ENTRY_BOOL("realtek,in2-differential"),
+	PROPERTY_ENTRY_GPIO("realtek,reset-gpios", &cherryview_gpiochip_nodes[3], 25, GPIO_ACTIVE_LOW),
+	PROPERTY_ENTRY_GPIO("realtek,pow-ldo2-gpios", &cherryview_gpiochip_nodes[3], 18, GPIO_ACTIVE_HIGH),
+	PROPERTY_ENTRY_GPIO("speaker-enable-gpios", &cherryview_gpiochip_nodes[3], 48, GPIO_ACTIVE_HIGH),
+	PROPERTY_ENTRY_GPIO("speaker-enable2-gpios", &lenovo_yb1_rt5677_gpiochip_node, 2, GPIO_ACTIVE_HIGH),
+	PROPERTY_ENTRY_GPIO("headphone-enable-gpios", &lenovo_yb1_rt5677_gpiochip_node, 4, GPIO_ACTIVE_HIGH),
+	{}
+};
+
+static const struct software_node lenovo_yb1_x90_rt5677_node = {
+	.properties = lenovo_yb1_x9x_rt5677_props,
+};
+
+static const struct property_entry lenovo_yb1_ts3a227e_props[] = {
+	/* MICBIAS is 2.5V */
+	PROPERTY_ENTRY_U32("ti,micbias", 4),
+	PROPERTY_ENTRY_U32("ti,debounce-insertion-ms", 2000),
+	{}
+};
+
+static const struct software_node lenovo_yb1_ts3a227e_node = {
+	.properties = lenovo_yb1_ts3a227e_props,
+};
+
 static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst = {
 	{
 		/* BQ27542 fuel-gauge */
@@ -231,6 +269,40 @@ static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst
 			.polarity = ACPI_ACTIVE_LOW,
 			.con_id = "hideep_ts_irq",
 		},
+	}, {
+		/* Audio codec */
+		.board_info = {
+			.type = "rt5677",
+			.addr = 0x2c,
+			.dev_name = "rt5677",
+			.swnode = &lenovo_yb1_x90_rt5677_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 91,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "rt5677_irq",
+		},
+	}, {
+		/* Audio jack detection IC */
+		.board_info = {
+			.type = "ts3a227e",
+			.addr = 0x3b,
+			.dev_name = "ts3a227e",
+			.swnode = &lenovo_yb1_ts3a227e_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 77,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "ts3a227e_irq",
+		},
 	},
 };
 
@@ -284,6 +356,11 @@ static const struct software_node *lenovo_yb1_x90_lid_swnodes[] = {
 	NULL
 };
 
+static const struct software_node *lenovo_yb1_x90_swnodes[] = {
+	&lenovo_yb1_rt5677_gpiochip_node,
+	NULL
+};
+
 static int __init lenovo_yb1_x90_init(struct device *dev)
 {
 	/* Enable the regulators used by the touchscreens */
@@ -311,6 +388,7 @@ const struct x86_dev_info lenovo_yogabook_x90_info __initconst = {
 	.serdev_info = lenovo_yb1_x90_serdevs,
 	.serdev_count = ARRAY_SIZE(lenovo_yb1_x90_serdevs),
 	.gpio_button_swnodes = lenovo_yb1_x90_lid_swnodes,
+	.swnode_group = lenovo_yb1_x90_swnodes,
 	.gpiochip_type = X86_GPIOCHIP_CHERRYVIEW,
 	.init = lenovo_yb1_x90_init,
 };
@@ -327,15 +405,39 @@ static const struct x86_i2c_client_info lenovo_yogabook_x91_i2c_clients[] __init
 		},
 		.adapter_path = "\\_SB_.PCI0.I2C1",
 	},
+	{
+		/* Audio jack detection IC. Its configuration (I2C address and
+		 * IRQ) is defined as additional resources in RTEK (10EC5677)
+		 * ACPI node but define them here to simplify handling in
+		 * the driver
+		 */
+		.board_info = {
+			.type = "ts3a227e",
+			.addr = 0x3b,
+			.dev_name = "ts3a227e",
+			.swnode = &lenovo_yb1_ts3a227e_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 77,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "ts3a227e_irq",
+		},
+	},
 };
 
 #define YB1_X91_DRV2604L_0_DEVICE "i2c-DRV2604:00"
 #define YB1_X91_DRV2604L_1_DEVICE "i2c-DRV2604:01"
+#define YB1_X91_RT5677_DEVICE     "i2c-10EC5677:00"
 
 static int __init lenovo_yb1_x91_init(struct device *dev)
 {
 	struct device *drv2604l_0_dev __free(put_device) = NULL;
 	struct device *drv2604l_1_dev __free(put_device) = NULL;
+	struct device *rt5677_dev __free(put_device) = NULL;
 	int ret = 0;
 
 	drv2604l_0_dev = bus_find_device_by_name(&i2c_bus_type, NULL,
@@ -370,12 +472,34 @@ static int __init lenovo_yb1_x91_init(struct device *dev)
 		return ret;
 	}
 
+	rt5677_dev = bus_find_device_by_name(&i2c_bus_type, NULL,
+					     YB1_X91_RT5677_DEVICE);
+	if (!rt5677_dev) {
+		pr_err("error: cannot find %s device\n",
+		       YB1_X91_RT5677_DEVICE);
+		return -ENODEV;
+	}
+
+	ret = device_create_managed_software_node(rt5677_dev,
+					lenovo_yb1_x9x_rt5677_props, NULL);
+	if (ret) {
+		pr_err("error: cannot create software node for %s\n",
+		       YB1_X91_RT5677_DEVICE);
+		return ret;
+	}
+
 	return 0;
 }
+
+static const struct software_node *lenovo_yb1_x91_swnodes[] = {
+	&lenovo_yb1_rt5677_gpiochip_node,
+	NULL
+};
 
 const struct x86_dev_info lenovo_yogabook_x91_info __initconst = {
 	.i2c_client_info = lenovo_yogabook_x91_i2c_clients,
 	.i2c_client_count = ARRAY_SIZE(lenovo_yogabook_x91_i2c_clients),
+	.swnode_group = lenovo_yb1_x91_swnodes,
 	.gpiochip_type = X86_GPIOCHIP_CHERRYVIEW,
 	.init = lenovo_yb1_x91_init,
 };
