@@ -114,6 +114,16 @@ static const struct software_node lenovo_yb1_x90_hideep_ts_node = {
 	.properties = lenovo_yb1_x90_hideep_ts_props,
 };
 
+static const struct property_entry lenovo_yb1_ts3a227e_props[] = {
+	/* Got from Lenovo Android kernel code drop */
+	PROPERTY_ENTRY_U32("ti,micbias", 7),
+	{}
+};
+
+static const struct software_node lenovo_yb1_ts3a227e_node = {
+	.properties = lenovo_yb1_ts3a227e_props,
+};
+
 static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst = {
 	{
 		/* BQ27542 fuel-gauge */
@@ -185,7 +195,40 @@ static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst
 			.polarity = ACPI_ACTIVE_LOW,
 			.con_id = "hideep_ts_irq",
 		},
-	},
+	}, {
+		/* Audio codec */
+		.board_info = {
+			.type = "rt5677",
+			.addr = 0x2c,
+			.dev_name = "rt5677",
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 91,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "rt5677_irq",
+		},
+	}, {
+		/* Audio jack detection IC */
+		.board_info = {
+			.type = "ts3a227e",
+			.addr = 0x3b,
+			.dev_name = "ts3a227e",
+			.swnode = &lenovo_yb1_ts3a227e_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 77,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "ts3a227e_irq",
+		},
+	}
 };
 
 static const struct platform_device_info lenovo_yb1_x90_pdevs[] __initconst = {
@@ -235,6 +278,32 @@ static const struct software_node lenovo_yb1_x90_lid_node = {
 static const struct software_node *lenovo_yb1_x90_lid_swnodes[] = {
 	&lenovo_lid_gpio_keys_node,
 	&lenovo_yb1_x90_lid_node,
+
+static struct gpiod_lookup_table lenovo_yb1_x90_wacom_gpios = {
+	.dev_id = "i2c-wacom",
+	.table = {
+		GPIO_LOOKUP("INT33FF:00", 82, "reset", GPIO_ACTIVE_LOW),
+		{ }
+	},
+};
+
+static struct gpiod_lookup_table lenovo_yb1_x90_rt5677_gpios = {
+	.dev_id = "i2c-rt5677",
+	.table = {
+		GPIO_LOOKUP("INT33FF:03", 25, "realtek,reset", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("INT33FF:03", 18, "realtek,pow-ldo2", GPIO_ACTIVE_HIGH),
+		GPIO_LOOKUP("INT33FF:03", 48, "speaker-enable", GPIO_ACTIVE_HIGH),
+		GPIO_LOOKUP("rt5677", 2, "speaker-enable2", GPIO_ACTIVE_HIGH),
+		GPIO_LOOKUP("rt5677", 4, "headphone-enable", GPIO_ACTIVE_HIGH),
+		{ }
+	},
+};
+
+static struct gpiod_lookup_table * const lenovo_yb1_x90_gpios[] = {
+	&lenovo_yb1_x90_hideep_gpios,
+	&lenovo_yb1_x90_goodix_gpios,
+	&lenovo_yb1_x90_wacom_gpios,
+	&lenovo_yb1_x90_rt5677_gpios,
 	NULL
 };
 
@@ -281,11 +350,49 @@ static const struct x86_i2c_client_info lenovo_yogabook_x91_i2c_clients[] __init
 		},
 		.adapter_path = "\\_SB_.PCI0.I2C1",
 	},
+	{
+		/* Audio jack detection IC. Its configuration (I2C address and
+		 * IRQ) is defined as additional resources in RTEK (10EC5677)
+		 * ACPI node but define them here to simplify handling in
+		 * the driver
+		 */
+		.board_info = {
+			.type = "ts3a227e",
+			.addr = 0x3b,
+			.dev_name = "ts3a227e",
+			.swnode = &lenovo_yb1_ts3a227e_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+		.irq_data = {
+			.type = X86_ACPI_IRQ_TYPE_GPIOINT,
+			.chip = "INT33FF:00",
+			.index = 77,
+			.trigger = ACPI_EDGE_SENSITIVE,
+			.polarity = ACPI_ACTIVE_LOW,
+			.con_id = "ts3a227e_irq",
+		},
+	}
 };
+
+static struct gpiod_lookup_table lenovo_yb1_x91_rt5677_gpios = {
+	.dev_id = "i2c-10EC5677:00",
+	.table = {
+		GPIO_LOOKUP("rt5677", 2, "speaker-enable2", GPIO_ACTIVE_HIGH),
+		GPIO_LOOKUP("rt5677", 4, "headphone-enable", GPIO_ACTIVE_HIGH),
+		{ }
+	},
+};
+
+static struct gpiod_lookup_table * const lenovo_yb1_x91_gpios[] = {
+	&lenovo_yb1_x91_rt5677_gpios,
+	NULL
+};
+
 
 const struct x86_dev_info lenovo_yogabook_x91_info __initconst = {
 	.i2c_client_info = lenovo_yogabook_x91_i2c_clients,
 	.i2c_client_count = ARRAY_SIZE(lenovo_yogabook_x91_i2c_clients),
+	.gpiod_lookup_tables = lenovo_yb1_x91_gpios,
 };
 
 /* Lenovo Yoga Tablet 2 1050F/L's Android factory image has everything hardcoded */
