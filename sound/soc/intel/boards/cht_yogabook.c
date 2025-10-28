@@ -38,6 +38,7 @@
 #include "../../codecs/ts3a227e.h"
 #include "../atom/sst-atom-controls.h"
 
+#define RT5677_I2C_DEFAULT	"i2c-rt5677"
 
 /* The platform clock #3 outputs 19.2Mhz clock to codec as I2S MCLK */
 #define CHT_PLAT_CLK_3_HZ	19200000
@@ -253,40 +254,6 @@ static int cht_aif1_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static struct gpiod_lookup_table cht_yb_gpios_table = {
-	/* .dev_id is set during probe */
-	.table = {
-		GPIO_LOOKUP("rt5677", 2, "speaker-enable2", GPIO_ACTIVE_HIGH),
-		GPIO_LOOKUP("rt5677", 4, "headphone-enable", GPIO_ACTIVE_HIGH),
-		{ },
-	},
-};
-
-#if 0
-static int cht_yb_set_bias_level(struct snd_soc_card *card,
-				struct snd_soc_dapm_context *dapm,
-				enum snd_soc_bias_level level)
-{
-	int ret = 0;
-
-	switch (level) {
-	case SND_SOC_BIAS_ON:
-	case SND_SOC_BIAS_PREPARE:
-	case SND_SOC_BIAS_STANDBY:
-	case SND_SOC_BIAS_OFF:
-		card->dapm.bias_level = level;
-		pr_debug("card(%s)->bias_level %u\n", card->name,
-				card->dapm.bias_level);
-		break;
-	default:
-		pr_err("%s: Invalid bias level=%d\n", __func__, level);
-		ret =  -EINVAL;
-	}
-
-	return ret;
-}
-#endif
-
 static int cht_yb_jack_event(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
@@ -310,13 +277,11 @@ static struct notifier_block cht_yb_jack_nb = {
 
 static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 {
-	int ret;
+	int ret = 0;
 	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(runtime, 0);
 	struct snd_soc_component *component = codec_dai->component;
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(runtime->card);
 	struct snd_soc_jack *jack = &ctx->jack;
-
-	printk(KERN_INFO "%s\n", __func__);
 
 	/* Enable codec ASRC function for Stereo DAC/Stereo1 ADC/DMIC/I2S1.
 	 * The ASRC clock source is clk_i2s1_asrc.
@@ -329,9 +294,6 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 	 */
 	rt5677_sel_asrc_clk_src(component, RT5677_AD_MONO_L_FILTER,
 			RT5677_CLK_SEL_SYS2);
-
-	cht_yb_gpios_table.dev_id = dev_name(component->dev);
-	gpiod_add_lookup_table(&cht_yb_gpios_table);
 
 	ctx->gpio_spk_en1 = devm_gpiod_get(component->dev, "speaker-enable",
 					  GPIOD_OUT_LOW);
@@ -352,7 +314,6 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 		dev_err(component->dev, "Can't find headphone enable GPIO\n");
 		return PTR_ERR(ctx->gpio_hp_en);
 	}
-
 
 	snd_soc_jack_notifier_register(jack, &cht_yb_jack_nb);
 
@@ -459,7 +420,7 @@ static const struct snd_soc_ops cht_be_ssp2_ops = {
 };
 
 static struct snd_soc_aux_dev cht_yb_headset_dev = {
-	.dlc = COMP_AUX("i2c-ts3a227e.0"),
+	.dlc = COMP_AUX("i2c-ts3a227e"),
 	.init = cht_yb_headset_init,
 };
 
@@ -475,7 +436,7 @@ SND_SOC_DAILINK_DEF(deepbuffer,
 SND_SOC_DAILINK_DEF(ssp2_port,
 	DAILINK_COMP_ARRAY(COMP_CPU("ssp2-port")));
 SND_SOC_DAILINK_DEF(ssp2_codec,
-	DAILINK_COMP_ARRAY(COMP_CODEC("i2c-10EC5677:00", "rt5677-aif1")));
+	DAILINK_COMP_ARRAY(COMP_CODEC(RT5677_I2C_DEFAULT, "rt5677-aif1")));
 
 SND_SOC_DAILINK_DEF(platform,
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("sst-mfld-platform")));
@@ -543,8 +504,6 @@ static void cht_codec_register_spidev(void)
 	ret = spi_register_board_info(&rt5677_board_info, 1);
 }
 
-#define RT5677_I2C_DEFAULT	"i2c-10EC5677:00"
-
 static const struct acpi_gpio_params speaker_enable_gpio = { 2, 0, false };
 static const struct acpi_gpio_mapping cht_yb_gpios[] = {
 	{ "speaker-enable-gpios", &speaker_enable_gpio, 1 },
@@ -574,7 +533,7 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 
 	strcpy(drv->codec_name, RT5677_I2C_DEFAULT);
 
-	/* fixup codec name based on HID */
+	/* fixup codec name based on HID if ACPI node is present */
 	adev = acpi_dev_get_first_match_dev(mach->id, NULL, -1);
 	if (adev) {
 		snprintf(drv->codec_name, sizeof(drv->codec_name),
@@ -597,13 +556,12 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	if (!codec_dev)
 		return -EPROBE_DEFER;
 
-	dev_info(&pdev->dev, "Is ACPI devnode: %d\n", is_acpi_device_node(codec_dev->fwnode));
-	dev_info(&pdev->dev, "ACPI handle: %p\n", ACPI_HANDLE(codec_dev));
-
-	ret_val = devm_acpi_dev_add_driver_gpios(codec_dev, cht_yb_gpios);
-	if(ret_val)
-		dev_warn(&pdev->dev, "Unable to add GPIO mapping table: %d\n",
-			 ret_val);
+	if (adev) {
+		ret_val = devm_acpi_dev_add_driver_gpios(codec_dev, cht_yb_gpios);
+		if(ret_val)
+			dev_warn(&pdev->dev, "Unable to add GPIO mapping table: %d\n",
+					ret_val);
+	}
 
 	/* override plaform name, if required */
 	snd_soc_card_cht.dev = &pdev->dev;
@@ -659,97 +617,9 @@ static struct platform_driver snd_cht_mc_driver = {
 	.probe = snd_cht_mc_probe,
 };
 
-static const struct dmi_system_id yb_dmi_device_table[] = {
-	{
-		.ident = "Lenovo YogaBook",
-		/* YB1-X91L/F and YB1-X90L/F */
-		.matches = {
-			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9")
-		}
-	},
-	{}
-};
+module_platform_driver(snd_cht_mc_driver);
 
-static struct i2c_client *ts3a227e_client;
-
-static const struct property_entry ts3a227e_props[] = {
-	/* Got from Lenovo Android kernel code drop */
-	PROPERTY_ENTRY_U32("ti,micbias", 7),
-	{}
-};
-
-static const struct software_node ts3a227e_node = {
-	.properties = ts3a227e_props,
-};
-
-static int cht_yb_register_ts3a227e(void)
-{
-	struct device *codec_dev;
-	struct acpi_device *adev;
-	struct i2c_board_info board_info = {
-		.type = "ts3a227e",
-		.dev_name = "ts3a227e.0",
-		.swnode = &ts3a227e_node,
-	};
-	int ret;
-
-	codec_dev = bus_find_device_by_name(&i2c_bus_type, NULL,
-			RT5677_I2C_DEFAULT);
-	if (!codec_dev) {
-		pr_err("Failed to find codec device to get ts3a227e settings\n");
-		return -ENODEV;
-	}
-
-	adev = ACPI_COMPANION(codec_dev);
-
-	ret = acpi_dev_gpio_irq_get(adev, 1);
-	if (ret < 0) {
-		pr_err("cht_yogabook: Error requesting irq at index 1 for ts3a227e: %d\n",
-			ret);
-		goto error;
-	}
-
-	board_info.irq = ret;
-	pr_debug("IRQ = %d\n", board_info.irq);
-
-	ts3a227e_client = i2c_acpi_new_device(codec_dev, 1, &board_info);
-	if (IS_ERR(ts3a227e_client)) {
-		ret = PTR_ERR(ts3a227e_client);
-		if (ret != -EPROBE_DEFER)
-			pr_err("Error creating i2c client for ts3a227e: %d\n", ret);
-		goto error;
-	}
-
-	return 0;
-
-error:
-	return ret;
-}
-
-static int __init cht_yb_init(void)
-{
-	int ret;
-
-	if (!dmi_check_system(yb_dmi_device_table)) {
-		return -ENODEV;
-	}
-
-	ret = cht_yb_register_ts3a227e();
-	if (ret)
-		return ret;
-
-	return platform_driver_register(&snd_cht_mc_driver);
-}
-module_init(cht_yb_init);
-
-static void __exit cht_yb_exit(void)
-{
-	platform_driver_unregister(&snd_cht_mc_driver);
-	i2c_unregister_device(ts3a227e_client);
-}
-module_exit(cht_yb_exit);
-
-MODULE_DESCRIPTION("Lenovo Yoga Book X1-9x machine driver");
+MODULE_DESCRIPTION("Lenovo Yoga Book YB1-X9x machine driver");
 MODULE_AUTHOR("Yauhen Kharuzhy");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:cht-yogabook");
