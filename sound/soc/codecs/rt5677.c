@@ -5211,6 +5211,12 @@ static const struct acpi_device_id rt5677_acpi_match[] = {
 };
 MODULE_DEVICE_TABLE(acpi, rt5677_acpi_match);
 
+static const struct i2c_device_id rt5677_i2c_id[] = {
+	{ "rt5677", RT5677 },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, rt5677_i2c_id);
+
 static void rt5677_read_device_properties(struct rt5677_priv *rt5677,
 		struct device *dev)
 {
@@ -5576,7 +5582,6 @@ static struct dmi_system_id dmi_platform_data[] = {
 
 static int rt5677_i2c_probe(struct i2c_client *i2c)
 {
-	struct device *dev = &i2c->dev;
 	struct rt5677_priv *rt5677;
 	unsigned int val;
 	int ret;
@@ -5592,7 +5597,7 @@ static int rt5677_i2c_probe(struct i2c_client *i2c)
 	INIT_DELAYED_WORK(&rt5677->dsp_work, rt5677_dsp_work);
 	i2c_set_clientdata(i2c, rt5677);
 
-	rt5677->type = (enum rt5677_type)(uintptr_t)device_get_match_data(dev);
+	rt5677->type = (enum rt5677_type)(uintptr_t)i2c_get_match_data(i2c);
 	if (rt5677->type == 0)
 		return -EINVAL;
 
@@ -5733,6 +5738,7 @@ static struct i2c_driver rt5677_i2c_driver = {
 		.of_match_table = rt5677_of_match,
 		.acpi_match_table = rt5677_acpi_match,
 	},
+	.id_table = rt5677_i2c_id,
 	.probe    = rt5677_i2c_probe,
 	.remove   = rt5677_i2c_remove,
 };
