@@ -5569,13 +5569,34 @@ static int rt5677_lenovo_yogabook_fixup(const struct dmi_system_id *id)
 	return 1;
 }
 
+static int rt5677_lenovo_yogabook_x90_fixup(const struct dmi_system_id *id)
+{
+	struct rt5677_priv *rt5677 = id->driver_data;
+
+	if (device_create_managed_software_node(rt5677->dev, lenovo_yb_properties, NULL))
+		dev_warn(rt5677->dev, "Unable to add device properties\n");;
+
+	return 1;
+}
+
+
 static struct dmi_system_id dmi_platform_data[] = {
 	{
 		.callback = rt5677_lenovo_yogabook_fixup,
-		.ident = "Lenovo YogaBook",
-		/* YB1-X91L/F and YB1-X90L/F */
+		.ident = "Lenovo YogaBook YB1-X91",
+		/* YB1-X91L/F */
 		.matches = {
-			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X91"),
+		},
+	},
+	{
+		.callback = rt5677_lenovo_yogabook_x90_fixup,
+		.ident = "Lenovo YogaBook YB1-X90",
+		/* YB1-X90L/F */
+		.matches = {
+			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "CHERRYVIEW D1 PLATFORM"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_VERSION, "YETI-11"),
 		},
 	},
 };
