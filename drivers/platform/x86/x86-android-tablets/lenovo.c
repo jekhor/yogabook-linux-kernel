@@ -10,6 +10,8 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/cleanup.h>
+#include <linux/device.h>
 #include <linux/efi.h>
 #include <linux/gpio/machine.h>
 #include <linux/gpio/property.h>
@@ -114,6 +116,32 @@ static const struct software_node lenovo_yb1_x90_hideep_ts_node = {
 	.properties = lenovo_yb1_x90_hideep_ts_props,
 };
 
+static const struct property_entry lenovo_yb1_x9x_drv2604l_0_props[] = {
+	PROPERTY_ENTRY_U32("vib-rated-mv", 1500),
+	PROPERTY_ENTRY_U32("vib-overdrive-mv", 2100),
+	PROPERTY_ENTRY_U32("mode", 0), /* LRA */
+	PROPERTY_ENTRY_U32("library-sel", 0), /* DRV260X_LIB_EMPTY */
+	PROPERTY_ENTRY_GPIO("enable-gpios", &cherryview_gpiochip_nodes[0], 79, GPIO_ACTIVE_HIGH),
+	{}
+};
+
+static const struct software_node lenovo_yb1_x9x_drv2604l_0_node = {
+	.properties = lenovo_yb1_x9x_drv2604l_0_props,
+};
+
+static const struct property_entry lenovo_yb1_x9x_drv2604l_1_props[] = {
+	PROPERTY_ENTRY_U32("vib-rated-mv", 1500),
+	PROPERTY_ENTRY_U32("vib-overdrive-mv", 2100),
+	PROPERTY_ENTRY_U32("mode", 0), /* LRA */
+	PROPERTY_ENTRY_U32("library-sel", 0), /* DRV260X_LIB_EMPTY */
+	PROPERTY_ENTRY_GPIO("enable-gpios", &cherryview_gpiochip_nodes[1], 47, GPIO_ACTIVE_HIGH),
+	{}
+};
+
+static const struct software_node lenovo_yb1_x9x_drv2604l_1_node = {
+	.properties = lenovo_yb1_x9x_drv2604l_1_props,
+};
+
 static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst = {
 	{
 		/* BQ27542 fuel-gauge */
@@ -159,6 +187,24 @@ static const struct x86_i2c_client_info lenovo_yb1_x90_i2c_clients[] __initconst
 			.polarity = ACPI_ACTIVE_LOW,
 			.con_id = "wacom_irq",
 		},
+	}, {
+		/* Keyboard haptics driver */
+		.board_info = {
+			.type = "drv2604l",
+			.addr = 0x5a,
+			.dev_name = "drv2604l.0",
+			.swnode = &lenovo_yb1_x9x_drv2604l_0_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C1",
+	}, {
+		/* Keyboard haptics driver */
+		.board_info = {
+			.type = "drv2604l",
+			.addr = 0x5a,
+			.dev_name = "drv2604l.1",
+			.swnode = &lenovo_yb1_x9x_drv2604l_1_node,
+		},
+		.adapter_path = "\\_SB_.PCI0.I2C4",
 	}, {
 		/* LP8557 Backlight controller */
 		.board_info = {
@@ -283,9 +329,55 @@ static const struct x86_i2c_client_info lenovo_yogabook_x91_i2c_clients[] __init
 	},
 };
 
+#define YB1_X91_DRV2604L_0_DEVICE "i2c-DRV2604:00"
+#define YB1_X91_DRV2604L_1_DEVICE "i2c-DRV2604:01"
+
+static int __init lenovo_yb1_x91_init(struct device *dev)
+{
+	struct device *drv2604l_0_dev __free(put_device) = NULL;
+	struct device *drv2604l_1_dev __free(put_device) = NULL;
+	int ret = 0;
+
+	drv2604l_0_dev = bus_find_device_by_name(&i2c_bus_type, NULL,
+						 YB1_X91_DRV2604L_0_DEVICE);
+	if (!drv2604l_0_dev) {
+		pr_err("error: cannot find %s device\n",
+		       YB1_X91_DRV2604L_0_DEVICE);
+		return -ENODEV;
+	}
+
+	ret = device_create_managed_software_node(drv2604l_0_dev,
+					lenovo_yb1_x9x_drv2604l_0_props, NULL);
+	if (ret) {
+		pr_err("error: cannot create software node for %s: %d\n",
+		       YB1_X91_DRV2604L_0_DEVICE, ret);
+		return ret;
+	}
+
+	drv2604l_1_dev = bus_find_device_by_name(&i2c_bus_type, NULL,
+						 YB1_X91_DRV2604L_1_DEVICE);
+	if (!drv2604l_1_dev) {
+		pr_err("error: cannot find %s device\n",
+		       YB1_X91_DRV2604L_1_DEVICE);
+		return -ENODEV;
+	}
+
+	ret = device_create_managed_software_node(drv2604l_1_dev,
+					lenovo_yb1_x9x_drv2604l_1_props, NULL);
+	if (ret) {
+		pr_err("error: cannot create software node for %s\n",
+		       YB1_X91_DRV2604L_1_DEVICE);
+		return ret;
+	}
+
+	return 0;
+}
+
 const struct x86_dev_info lenovo_yogabook_x91_info __initconst = {
 	.i2c_client_info = lenovo_yogabook_x91_i2c_clients,
 	.i2c_client_count = ARRAY_SIZE(lenovo_yogabook_x91_i2c_clients),
+	.gpiochip_type = X86_GPIOCHIP_CHERRYVIEW,
+	.init = lenovo_yb1_x91_init,
 };
 
 /* Lenovo Yoga Tablet 2 1050F/L's Android factory image has everything hardcoded */
