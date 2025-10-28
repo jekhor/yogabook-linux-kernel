@@ -27,6 +27,14 @@ static struct snd_soc_acpi_mach cht_yogabook_mach = {
 	.sof_tplg_filename = "sof-cht-rt5677.tplg",
 };
 
+static struct snd_soc_acpi_mach cht_lenovo_yoga_tab3_x90_mach = {
+	.id = "10WM5102",
+	.drv_name = "bytcr_wm5102",
+	.fw_filename = "intel/fw_sst_22a8.bin",
+	.board = "bytcr_wm5102",
+	.sof_tplg_filename = "sof-cht-wm5102.tplg",
+};
+
 static int cht_surface_quirk_cb(const struct dmi_system_id *id)
 {
 	cht_quirk_mach = &cht_surface_mach;
@@ -36,6 +44,12 @@ static int cht_surface_quirk_cb(const struct dmi_system_id *id)
 static int cht_yogabook_quirk_cb(const struct dmi_system_id *id)
 {
 	cht_quirk_mach = &cht_yogabook_mach;
+	return 1;
+}
+
+static int cht_yt3_quirk_cb(const struct dmi_system_id *id)
+{
+	cht_quirk_mach = &cht_lenovo_yoga_tab3_x90_mach;
 	return 1;
 }
 
@@ -50,10 +64,31 @@ static const struct dmi_system_id cht_table[] = {
 	{
 		.callback = cht_yogabook_quirk_cb,
 		.ident = "Lenovo YogaBook",
-		/* YB1-X91L/F and YB1-X90L/F */
+		/* YB1-X91L/F */
 		.matches = {
-			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X9"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X91"),
 		}
+	},
+	{
+		.callback = cht_yogabook_quirk_cb,
+		.ident = "Lenovo YogaBook",
+		/* YB1-X90L/F, codec is not listed in DSDT */
+		.matches = {
+			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "CHERRYVIEW D1 PLATFORM"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_VERSION, "YETI-11"),
+		}
+	},
+	{
+		/*
+		 * The Lenovo Yoga Tab 3 Pro YT3-X90, with Android factory OS
+		 * has a buggy DSDT with the codec not being listed at all.
+		 */
+		.callback = cht_yt3_quirk_cb,
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
+			DMI_MATCH(DMI_PRODUCT_VERSION, "Blade3-10A-001"),
+		},
 	},
 	{ }
 };
@@ -68,6 +103,16 @@ static struct snd_soc_acpi_mach *cht_quirk(void *arg)
 		return cht_quirk_mach;
 	else
 		return mach;
+}
+
+static struct snd_soc_acpi_mach *cht_quirk_nocodec(void *arg)
+{
+	dmi_check_system(cht_table);
+
+	if (cht_quirk_mach != NULL)
+		return cht_quirk_mach;
+	else
+		return NULL;
 }
 
 /*
@@ -109,23 +154,6 @@ static const struct dmi_system_id lenovo_yoga_tab3_x90[] = {
 	},
 	{ }
 };
-
-static struct snd_soc_acpi_mach cht_lenovo_yoga_tab3_x90_mach = {
-	.id = "10WM5102",
-	.drv_name = "bytcr_wm5102",
-	.fw_filename = "intel/fw_sst_22a8.bin",
-	.board = "bytcr_wm5102",
-	.sof_tplg_filename = "sof-cht-wm5102.tplg",
-};
-
-static struct snd_soc_acpi_mach *lenovo_yt3_x90_quirk(void *arg)
-{
-	if (dmi_check_system(lenovo_yoga_tab3_x90))
-		return &cht_lenovo_yoga_tab3_x90_mach;
-
-	/* Skip wildcard match snd_soc_acpi_intel_cherrytrail_machines[] entry */
-	return NULL;
-}
 
 static const struct snd_soc_acpi_codecs rt5640_comp_ids = {
 	.num_codecs = 2,
@@ -248,7 +276,7 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 	 */
 	{
 		.id = "808622A8",
-		.machine_quirk = lenovo_yt3_x90_quirk,
+		.machine_quirk = cht_quirk_nocodec,
 	},
 
 #if IS_ENABLED(CONFIG_SND_SOC_INTEL_BYT_CHT_NOCODEC_MACH)
