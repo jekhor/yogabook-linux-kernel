@@ -7,8 +7,6 @@
  * Copyright:   (C) 2014 Texas Instruments, Inc.
  */
 
-#define DEBUG
-
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/module.h>
