@@ -537,11 +537,17 @@ static int drv260x_probe(struct i2c_client *client)
 	haptics->overdrive_voltage = error ? DRV260X_DEF_OD_CLAMP_VOLT :
 					     drv260x_calculate_voltage(voltage);
 
-	haptics->regulator = devm_regulator_get(dev, "vbat");
+	haptics->regulator = devm_regulator_get_optional(dev, "vbat");
 	if (IS_ERR(haptics->regulator)) {
-		error = PTR_ERR(haptics->regulator);
-		dev_err(dev, "unable to get regulator, error: %d\n", error);
-		return error;
+		if (PTR_ERR(haptics->regulator) == -ENODEV) {
+			haptics->regulator = NULL;
+			dev_dbg(dev, "No vbat regulator found\n");
+		} else {
+			error = PTR_ERR(haptics->regulator);
+			dev_err(dev, "unable to get regulator, error: %d\n",
+				error);
+			return error;
+		}
 	}
 
 	haptics->enable_gpio = devm_gpiod_get_optional(dev,
@@ -615,13 +621,15 @@ static int drv260x_suspend(struct device *dev)
 
 		gpiod_set_value(haptics->enable_gpio, 0);
 
-		error = regulator_disable(haptics->regulator);
-		if (error) {
-			dev_err(dev, "Failed to disable regulator\n");
-			regmap_update_bits(haptics->regmap,
-					   DRV260X_MODE,
-					   DRV260X_STANDBY_MASK, 0);
-			return error;
+		if (haptics->regulator) {
+			error = regulator_disable(haptics->regulator);
+			if (error) {
+				dev_err(dev, "Failed to disable regulator\n");
+				regmap_update_bits(haptics->regmap,
+						   DRV260X_MODE,
+						   DRV260X_STANDBY_MASK, 0);
+				return error;
+			}
 		}
 	}
 
@@ -636,10 +644,12 @@ static int drv260x_resume(struct device *dev)
 	guard(mutex)(&haptics->input_dev->mutex);
 
 	if (input_device_enabled(haptics->input_dev)) {
-		error = regulator_enable(haptics->regulator);
-		if (error) {
-			dev_err(dev, "Failed to enable regulator\n");
-			return error;
+		if (haptics->regulator) {
+			error = regulator_enable(haptics->regulator);
+			if (error) {
+				dev_err(dev, "Failed to enable regulator\n");
+				return error;
+			}
 		}
 
 		error = regmap_update_bits(haptics->regmap,
@@ -647,7 +657,9 @@ static int drv260x_resume(struct device *dev)
 					   DRV260X_STANDBY_MASK, 0);
 		if (error) {
 			dev_err(dev, "Failed to unset standby mode\n");
-			regulator_disable(haptics->regulator);
+			if (haptics->regulator)
+				regulator_disable(haptics->regulator);
+
 			return error;
 		}
 
