@@ -464,12 +464,26 @@ static const struct regmap_config drv260x_regmap_config = {
 	.cache_type = REGCACHE_NONE,
 };
 
+static const struct acpi_gpio_params enable_gpio = { 0, 0, false };
+static const struct acpi_gpio_mapping acpi_drv260x_default_gpios[] = {
+	{ "enable-gpio", &enable_gpio, 1 },
+	{ }
+};
+
 static int drv260x_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct drv260x_data *haptics;
 	u32 voltage;
 	int error;
+
+	if (has_acpi_companion(dev)) {
+		error = devm_acpi_dev_add_driver_gpios(dev, acpi_drv260x_default_gpios);
+		if (error) {
+			dev_err(dev, "can't add GPIO ACPI mapping\n");
+			return error;
+		}
+	}
 
 	haptics = devm_kzalloc(dev, sizeof(*haptics), GFP_KERNEL);
 	if (!haptics)
@@ -530,13 +544,8 @@ static int drv260x_probe(struct i2c_client *client)
 		return error;
 	}
 
-	haptics->enable_gpio = devm_gpiod_get_optional(dev, "enable",
-						       GPIOD_OUT_HIGH);
-
-	/* Request first GPIO from ACPI _CRS description */
-	if (!haptics->enable_gpio)
-		haptics->enable_gpio = devm_gpiod_get_index_optional(dev,
-				NULL, 0, GPIOD_OUT_HIGH);
+	haptics->enable_gpio = devm_gpiod_get_optional(dev,
+			"enable", GPIOD_OUT_HIGH);
 
 	dev_dbg(dev, "Enable gpio = 0x%p\n", haptics->enable_gpio);
 	if (IS_ERR(haptics->enable_gpio))
