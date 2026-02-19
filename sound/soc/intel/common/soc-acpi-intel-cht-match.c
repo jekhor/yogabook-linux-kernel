@@ -9,10 +9,6 @@
 #include <sound/soc-acpi.h>
 #include <sound/soc-acpi-intel-match.h>
 
-static unsigned long cht_machine_id;
-
-#define CHT_SURFACE_MACH 1
-
 static struct snd_soc_acpi_mach cht_surface_mach = {
 	.id = "10EC5640",
 	.drv_name = "cht-bsw-rt5645",
@@ -29,18 +25,23 @@ static struct snd_soc_acpi_mach cht_lenovo_yoga_tab3_x90_mach = {
 	.sof_tplg_filename = "sof-cht-wm5102.tplg",
 };
 
-static int cht_surface_quirk_cb(const struct dmi_system_id *id)
-{
-	cht_machine_id = CHT_SURFACE_MACH;
-	return 1;
-}
-
 static const struct dmi_system_id cht_table[] = {
 	{
-		.callback = cht_surface_quirk_cb,
+		.driver_data = (void *)&cht_surface_mach,
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Microsoft Corporation"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Surface 3"),
+		},
+	},
+	{
+		/*
+		 * The Lenovo Yoga Tab 3 Pro YT3-X90, with Android factory OS
+		 * has a buggy DSDT with the codec not being listed at all.
+		 */
+		.driver_data = (void *)&cht_lenovo_yoga_tab3_x90_mach,
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
+			DMI_MATCH(DMI_PRODUCT_VERSION, "Blade3-10A-001"),
 		},
 	},
 	{ }
@@ -49,13 +50,20 @@ static const struct dmi_system_id cht_table[] = {
 static struct snd_soc_acpi_mach *cht_quirk(void *arg)
 {
 	struct snd_soc_acpi_mach *mach = arg;
+	const struct dmi_system_id *match;
 
-	dmi_check_system(cht_table);
-
-	if (cht_machine_id == CHT_SURFACE_MACH)
-		return &cht_surface_mach;
+	match = dmi_first_match(cht_table);
+	if (match)
+		return (struct snd_soc_acpi_mach *)match->driver_data;
 	else
 		return mach;
+}
+
+static struct snd_soc_acpi_mach *cht_quirk_strict(void *arg)
+{
+	struct snd_soc_acpi_mach *mach = cht_quirk(arg);
+
+	return mach == arg ? NULL : mach;
 }
 
 /*
@@ -81,30 +89,6 @@ static struct snd_soc_acpi_mach *cht_ess8316_quirk(void *arg)
 		return NULL;
 
 	return arg;
-}
-
-/*
- * The Lenovo Yoga Tab 3 Pro YT3-X90, with Android factory OS has a buggy DSDT
- * with the coded not being listed at all.
- */
-static const struct dmi_system_id lenovo_yoga_tab3_x90[] = {
-	{
-		/* Lenovo Yoga Tab 3 Pro YT3-X90, codec missing from DSDT */
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "Intel Corporation"),
-			DMI_MATCH(DMI_PRODUCT_VERSION, "Blade3-10A-001"),
-		},
-	},
-	{ }
-};
-
-static struct snd_soc_acpi_mach *lenovo_yt3_x90_quirk(void *arg)
-{
-	if (dmi_check_system(lenovo_yoga_tab3_x90))
-		return &cht_lenovo_yoga_tab3_x90_mach;
-
-	/* Skip wildcard match snd_soc_acpi_intel_cherrytrail_machines[] entry */
-	return NULL;
 }
 
 static const struct snd_soc_acpi_codecs rt5640_comp_ids = {
@@ -208,14 +192,14 @@ struct snd_soc_acpi_mach  snd_soc_acpi_intel_cherrytrail_machines[] = {
 		.sof_tplg_filename = "sof-cht-src-50khz-pcm512x.tplg",
 	},
 	/*
-	 * Special case for the Lenovo Yoga Tab 3 Pro YT3-X90 where the DSDT
-	 * misses the codec. Match on the SST id instead, lenovo_yt3_x90_quirk()
-	 * will return a YT3 specific mach or NULL when called on other hw,
-	 * skipping this entry.
+	 * Special case for devices where the DSDT misses the codec. Match on
+	 * the SST id instead, cht_quirk_nocodec() will return a
+	 * device-specific mach for matched device or NULL when called on other
+	 * hw, skipping this entry.
 	 */
 	{
 		.id = "808622A8",
-		.machine_quirk = lenovo_yt3_x90_quirk,
+		.machine_quirk = cht_quirk_strict,
 	},
 
 #if IS_ENABLED(CONFIG_SND_SOC_INTEL_BYT_CHT_NOCODEC_MACH)
