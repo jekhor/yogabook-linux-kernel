@@ -489,9 +489,8 @@ int main(int argc, char **argv)
 
 	gopts->nr_pages_per_cpu = bytes / gopts->page_size / gopts->nr_parallel;
 	if (!gopts->nr_pages_per_cpu) {
-		ksft_print_msg("pages_per_cpu = 0, cannot test (%zu / %lu / %lu)\n",
+		ksft_exit_skip("pages_per_cpu = 0, cannot test (%zu / %lu / %lu)\n",
 			       bytes, gopts->page_size, gopts->nr_parallel);
-		return KSFT_SKIP;
 	}
 
 	bounces = atoi(argv[3]);
