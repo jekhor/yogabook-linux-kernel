@@ -320,6 +320,7 @@ static const struct software_node lenovo_yb1_x90_lid_node = {
 static const struct software_node *lenovo_yb1_x90_lid_swnodes[] = {
 	&lenovo_lid_gpio_keys_node,
 	&lenovo_yb1_x90_lid_node,
+};
 
 static struct gpiod_lookup_table lenovo_yb1_x90_wacom_gpios = {
 	.dev_id = "i2c-wacom",
@@ -359,8 +360,8 @@ static struct gpiod_lookup_table lenovo_yb1_x90_rt5677_gpios = {
 };
 
 static struct gpiod_lookup_table * const lenovo_yb1_x90_gpios[] = {
-	&lenovo_yb1_x90_hideep_gpios,
-	&lenovo_yb1_x90_goodix_gpios,
+        /* &lenovo_yb1_x90_hideep_gpios, -- unresolved forward-port GPIO lookup */
+        /* &lenovo_yb1_x90_goodix_gpios, -- unresolved forward-port GPIO lookup */
 	&lenovo_yb1_x90_wacom_gpios,
 	&lenovo_yb1_x90_rt5677_gpios,
 	&lenovo_yb1_x90_drv2604l_0_gpios,
@@ -503,7 +504,7 @@ put_device_1:
 const struct x86_dev_info lenovo_yogabook_x91_info __initconst = {
 	.i2c_client_info = lenovo_yogabook_x91_i2c_clients,
 	.i2c_client_count = ARRAY_SIZE(lenovo_yogabook_x91_i2c_clients),
-	.gpiod_lookup_tables = lenovo_yb1_x91_gpios,
+        /* .gpiod_lookup_tables removed: not present in Linux 7.0.y x86_dev_info */
 	.init = lenovo_yb1_x91_init,
 };
 
