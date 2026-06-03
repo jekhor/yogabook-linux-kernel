@@ -9,6 +9,7 @@
  */
 
 #include "linux/virtio_net.h"
+#include <linux/bits.h>
 #include <linux/cleanup.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -53,7 +54,7 @@
 #define IRQ_UNBOUND -1
 
 /* Supported VDUSE features */
-static const uint64_t vduse_features;
+static const uint64_t vduse_features = BIT_U64(VDUSE_F_QUEUE_READY);
 
 /*
  * VDUSE instance have not asked the vduse API version, so assume 0.
@@ -120,6 +121,7 @@ struct vduse_dev {
 	char *name;
 	struct mutex lock;
 	spinlock_t msg_lock;
+	u64 vduse_features;
 	u64 msg_unique;
 	u32 msg_timeout;
 	wait_queue_head_t waitq;
@@ -624,8 +626,29 @@ static void vduse_vdpa_set_vq_ready(struct vdpa_device *vdpa,
 {
 	struct vduse_dev *dev = vdpa_to_vduse(vdpa);
 	struct vduse_virtqueue *vq = dev->vqs[idx];
+	struct vduse_dev_msg msg = { 0 };
+	int r;
 
 	vq->ready = ready;
+
+	if (!(dev->vduse_features & BIT_U64(VDUSE_F_QUEUE_READY)))
+		return;
+
+	msg.req.type = VDUSE_SET_VQ_READY;
+	msg.req.vq_ready.num = idx;
+	msg.req.vq_ready.ready = !!ready;
+
+	r = vduse_dev_msg_sync(dev, &msg);
+
+	if (r < 0) {
+		dev_dbg(&vdpa->dev, "device refuses to set vq %u ready %u",
+			idx, ready);
+
+		/* We can't do better than break the device in this case */
+		spin_lock(&dev->msg_lock);
+		vduse_dev_broken(dev);
+		spin_unlock(&dev->msg_lock);
+	}
 }
 
 static bool vduse_vdpa_get_vq_ready(struct vdpa_device *vdpa, u16 idx)
@@ -2215,6 +2238,9 @@ static int vduse_create_dev(struct vduse_dev_config *config,
 	dev->device_features = config->features;
 	dev->device_id = config->device_id;
 	dev->vendor_id = config->vendor_id;
+	dev->vduse_features = config->vduse_features;
+	dev_dbg(vduse_ctrl_dev, "Creating device %s with features 0x%llx",
+		config->name, config->vduse_features);
 
 	dev->nas = (dev->api_version < VDUSE_API_VERSION_1) ? 1 : config->nas;
 	dev->as = kzalloc_objs(dev->as[0], dev->nas);
