@@ -32,6 +32,7 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/soc-dapm.h>
 #include <sound/jack.h>
 #include <sound/soc-acpi.h>
 #include "../../codecs/rt5677.h"
@@ -56,8 +57,7 @@ struct cht_mc_private {
 static int platform_clock_control(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *k, int  event)
 {
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
+	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
 	struct snd_soc_dai *codec_dai;
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(card);
 	int ret;
@@ -113,8 +113,7 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 static int cht_yb_hp_event(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *k, int event)
 {
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
+	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(card);
 
 	dev_dbg(card->dev, "HP event: %s\n",
@@ -134,8 +133,7 @@ static int cht_yb_hp_event(struct snd_soc_dapm_widget *w,
 static int cht_yb_spk_event(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *k, int event)
 {
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
+	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(card);
 
 	dev_dbg(card->dev, "SPK event: %s\n",
@@ -258,7 +256,7 @@ static int cht_yb_jack_event(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
 	struct snd_soc_jack *jack = (struct snd_soc_jack *)data;
-	struct snd_soc_dapm_context *dapm = &jack->card->dapm;
+	struct snd_soc_dapm_context *dapm = jack->card->dapm;
 
 	if (event & SND_JACK_MICROPHONE) {
 		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
@@ -295,21 +293,21 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 	rt5677_sel_asrc_clk_src(component, RT5677_AD_MONO_L_FILTER,
 			RT5677_CLK_SEL_SYS2);
 
-	ctx->gpio_spk_en1 = devm_gpiod_get(component->dev, "speaker-enable",
+	ctx->gpio_spk_en1 = devm_gpiod_get_optional(component->dev, "speaker-enable",
 					  GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->gpio_spk_en1)) {
 		dev_err(component->dev, "Can't find speaker enable GPIO\n");
 		return PTR_ERR(ctx->gpio_spk_en1);
 	}
 
-	ctx->gpio_spk_en2 = devm_gpiod_get(component->dev, "speaker-enable2",
+	ctx->gpio_spk_en2 = devm_gpiod_get_optional(component->dev, "speaker-enable2",
 					  GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->gpio_spk_en2)) {
 		dev_err(component->dev, "Can't find speaker enable 2 GPIO\n");
 		return PTR_ERR(ctx->gpio_spk_en2);
 	}
 
-	ctx->gpio_hp_en = devm_gpiod_get(component->dev, "headphone-enable", GPIOD_OUT_LOW);
+	ctx->gpio_hp_en = devm_gpiod_get_optional(component->dev, "headphone-enable", GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->gpio_hp_en)) {
 		dev_err(component->dev, "Can't find headphone enable GPIO\n");
 		return PTR_ERR(ctx->gpio_hp_en);
