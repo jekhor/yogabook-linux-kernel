@@ -641,13 +641,12 @@ ssize_t __kernel_write(struct file *file, const void *buf, size_t count, loff_t 
 	return __kernel_write_iter(file, &iter, pos);
 }
 /*
- * This "EXPORT_SYMBOL_GPL()" is more of a "EXPORT_SYMBOL_DONTUSE()",
- * but autofs is one of the few internal kernel users that actually
+ * autofs is one of the few internal kernel users that actually
  * wants this _and_ can be built as a module. So we need to export
  * this symbol for autofs, even though it really isn't appropriate
  * for any other kernel modules.
  */
-EXPORT_SYMBOL_GPL(__kernel_write);
+EXPORT_SYMBOL_FOR_MODULES(__kernel_write, "autofs4");
 
 ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 			    loff_t *pos)
@@ -1211,6 +1210,29 @@ SYSCALL_DEFINE6(pwritev2, unsigned long, fd, const struct iovec __user *, vec,
 		return do_writev(fd, vec, vlen, flags);
 
 	return do_pwritev(fd, vec, vlen, pos, flags);
+}
+
+/*
+ * Legacy preadv2/pwritev2 wrapper.
+ */
+SYSCALL_DEFINE4(vmsplice, unsigned long, fd, const struct iovec __user *, vec,
+		unsigned long, vlen, unsigned int, flags)
+{
+	if (unlikely(flags & ~SPLICE_F_ALL))
+		return -EINVAL;
+
+	CLASS(fd, f)(fd);
+	if (fd_empty(f))
+		return -EBADF;
+
+	/* We do do_writev/do_readv, so it is okay to pass "false" here */
+	if (!get_pipe_info(fd_file(f), /* for_splice = */ false))
+		return -EBADF;
+
+	if (fd_file(f)->f_mode & FMODE_WRITE)
+		return do_writev(fd, vec, vlen, (flags & SPLICE_F_NONBLOCK) ? RWF_NOWAIT : 0);
+	else
+		return do_readv(fd, vec, vlen, (flags & SPLICE_F_NONBLOCK) ? RWF_NOWAIT : 0);
 }
 
 /*
