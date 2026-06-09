@@ -7,6 +7,7 @@
  *	   Honghui Zhang <honghui.zhang@mediatek.com>
  */
 
+#include <linux/bitfield.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/iopoll.h>
@@ -61,7 +62,7 @@
 /* MediaTek specific configuration registers */
 #define PCIE_FTS_NUM		0x70c
 #define PCIE_FTS_NUM_MASK	GENMASK(15, 8)
-#define PCIE_FTS_NUM_L0(x)	((x) & 0xff << 8)
+#define PCIE_FTS_NUM_L0(x)	FIELD_PREP(PCIE_FTS_NUM_MASK, x)
 
 #define PCIE_FC_CREDIT		0x73c
 #define PCIE_FC_CREDIT_MASK	(GENMASK(31, 31) | GENMASK(28, 16))
@@ -110,10 +111,6 @@
 #define PCIE_CFG_RDATA		0x48c
 #define APP_CFG_REQ		BIT(0)
 #define APP_CPL_STATUS		GENMASK(7, 5)
-
-#define CFG_WRRD_TYPE_0		4
-#define CFG_WR_FMT		2
-#define CFG_RD_FMT		0
 
 #define CFG_DW0_LENGTH(length)	((length) & GENMASK(9, 0))
 #define CFG_DW0_TYPE(type)	(((type) << 24) & GENMASK(28, 24))
@@ -295,7 +292,7 @@ static int mtk_pcie_hw_rd_cfg(struct mtk_pcie_port *port, u32 bus, u32 devfn,
 	u32 tmp;
 
 	/* Write PCIe configuration transaction header for Cfgrd */
-	writel(CFG_HEADER_DW0(CFG_WRRD_TYPE_0, CFG_RD_FMT),
+	writel(CFG_HEADER_DW0(PCIE_TLP_TYPE_CFG0_RDWR, PCIE_TLP_FMT_3DW_NO_DATA),
 	       port->base + PCIE_CFG_HEADER0);
 	writel(CFG_HEADER_DW1(where, size), port->base + PCIE_CFG_HEADER1);
 	writel(CFG_HEADER_DW2(where, PCI_FUNC(devfn), PCI_SLOT(devfn), bus),
@@ -325,7 +322,7 @@ static int mtk_pcie_hw_wr_cfg(struct mtk_pcie_port *port, u32 bus, u32 devfn,
 			      int where, int size, u32 val)
 {
 	/* Write PCIe configuration transaction header for Cfgwr */
-	writel(CFG_HEADER_DW0(CFG_WRRD_TYPE_0, CFG_WR_FMT),
+	writel(CFG_HEADER_DW0(PCIE_TLP_TYPE_CFG0_RDWR, PCIE_TLP_FMT_3DW_DATA),
 	       port->base + PCIE_CFG_HEADER0);
 	writel(CFG_HEADER_DW1(where, size), port->base + PCIE_CFG_HEADER1);
 	writel(CFG_HEADER_DW2(where, PCI_FUNC(devfn), PCI_SLOT(devfn), bus),
