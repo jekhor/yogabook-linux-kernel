@@ -1095,7 +1095,8 @@ struct kvm_vcpu_arch {
 #define IN_NESTED_ERET		__vcpu_single_flag(sflags, BIT(7))
 /* SError pending for nested guest */
 #define NESTED_SERROR_PENDING	__vcpu_single_flag(sflags, BIT(8))
-
+/* KVM is currently emulating an L2 to L1 exception */
+#define IN_NESTED_EXCEPTION	__vcpu_single_flag(sflags, BIT(9))
 
 #define vcpu_sve_max_vq(vcpu)	sve_vq_from_vl((vcpu)->arch.sve_max_vl)
 
