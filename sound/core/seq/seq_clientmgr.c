@@ -441,6 +441,7 @@ static ssize_t snd_seq_read(struct file *file, char __user *buf, size_t count,
 
 			memcpy(&tmpev, &cell->event, aligned_size);
 			tmpev.data.ext.len &= ~SNDRV_SEQ_EXT_MASK;
+			tmpev.data.ext.ptr = NULL;
 			if (copy_to_user(buf, &tmpev, aligned_size)) {
 				err = -EFAULT;
 				break;
@@ -1287,7 +1288,7 @@ static int snd_seq_ioctl_create_port(struct snd_seq_client *client, void *arg)
 		port_idx = -1;
 	if (port_idx >= SNDRV_SEQ_ADDRESS_UNKNOWN)
 		return -EINVAL;
-	err = snd_seq_create_port(client, port_idx, &port);
+	err = snd_seq_create_port(client, &port);
 	if (err < 0)
 		return err;
 
@@ -1306,9 +1307,13 @@ static int snd_seq_ioctl_create_port(struct snd_seq_client *client, void *arg)
 		}
 	}
 
-	info->addr = port->addr;
-
 	snd_seq_set_port_info(port, info);
+	err = snd_seq_insert_port(client, port_idx, port);
+	if (err < 0) {
+		kfree(port);
+		return err;
+	}
+	info->addr = port->addr;
 	if (info->capability & SNDRV_SEQ_PORT_CAP_UMP_ENDPOINT)
 		client->ump_endpoint_port = port->addr.port;
 	snd_seq_system_client_ev_port_start(port->addr.client, port->addr.port);

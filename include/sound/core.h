@@ -148,6 +148,8 @@ struct snd_card {
 	struct snd_mixer_oss *mixer_oss;
 	int mixer_oss_change_count;
 #endif
+
+	unsigned char private_data_area[] __aligned(__alignof__(unsigned long long));
 };
 
 #define dev_to_snd_card(p)	container_of(p, struct snd_card, card_dev)
@@ -316,6 +318,8 @@ static inline void snd_card_unref(struct snd_card *card)
 {
 	put_device(&card->card_dev);
 }
+
+DEFINE_FREE(snd_card_unref, struct snd_card *, if (_T) snd_card_unref(_T))
 
 #define snd_card_set_dev(card, devptr) ((card)->dev = (devptr))
 
