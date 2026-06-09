@@ -2980,22 +2980,54 @@ TEST_F(iommufd_viommu, vdevice_alloc)
 	uint32_t veventq_id;
 	uint32_t veventq_fd;
 	int prev_seq = -1;
+	size_t hdr_size = sizeof(struct iommufd_vevent_header);
+	char vbuf[64];
 
 	if (dev_id) {
 		/* Must allocate vdevice before attaching to a nested hwpt */
 		test_err_mock_domain_replace(ENOENT, self->stdev_id,
 					     self->nested_hwpt_id);
 
+		/* Test depth lower and upper bounds (mirrors kernel cap) */
+#define VEVENTQ_MAX_DEPTH (1U << 19)
+		test_err_veventq_alloc(EINVAL, viommu_id,
+				       IOMMU_VEVENTQ_TYPE_SELFTEST, 0, NULL,
+				       NULL);
+		test_err_veventq_alloc(EINVAL, viommu_id,
+				       IOMMU_VEVENTQ_TYPE_SELFTEST,
+				       VEVENTQ_MAX_DEPTH + 1, NULL, NULL);
+		test_cmd_veventq_alloc(viommu_id, IOMMU_VEVENTQ_TYPE_SELFTEST,
+				       VEVENTQ_MAX_DEPTH, &veventq_id,
+				       &veventq_fd);
+		close(veventq_fd);
+		test_ioctl_destroy(veventq_id);
+
 		/* Allocate a vEVENTQ with veventq_depth=2 */
 		test_cmd_veventq_alloc(viommu_id, IOMMU_VEVENTQ_TYPE_SELFTEST,
-				       &veventq_id, &veventq_fd);
+				       2, &veventq_id, &veventq_fd);
 		test_err_veventq_alloc(EEXIST, viommu_id,
-				       IOMMU_VEVENTQ_TYPE_SELFTEST, NULL, NULL);
+				       IOMMU_VEVENTQ_TYPE_SELFTEST, 2, NULL,
+				       NULL);
+
+		/* Invalid read counts on an empty vEVENTQ */
+		ASSERT_EQ(-1, read(veventq_fd, vbuf, 0));
+		ASSERT_EQ(EINVAL, errno);
+		ASSERT_EQ(-1, read(veventq_fd, vbuf, hdr_size - 1));
+		ASSERT_EQ(EINVAL, errno);
+
 		/* Set vdev_id to 0x99, unset it, and set to 0x88 */
 		test_cmd_vdevice_alloc(viommu_id, dev_id, 0x99, &vdev_id);
 		test_cmd_mock_domain_replace(self->stdev_id,
 					     self->nested_hwpt_id);
 		test_cmd_trigger_vevents(dev_id, 1);
+
+		/* Invalid read counts on a non-empty vEVENTQ */
+		ASSERT_EQ(-1, read(veventq_fd, vbuf, 0));
+		ASSERT_EQ(EINVAL, errno);
+		/* header fits but the event's payload doesn't */
+		ASSERT_EQ(-1, read(veventq_fd, vbuf, hdr_size));
+		ASSERT_EQ(EINVAL, errno);
+
 		test_cmd_read_vevents(veventq_fd, 1, 0x99, &prev_seq);
 		test_err_vdevice_alloc(EEXIST, viommu_id, dev_id, 0x99,
 				       &vdev_id);
