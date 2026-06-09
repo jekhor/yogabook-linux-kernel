@@ -290,6 +290,8 @@ enum {
 	IO_RING_F_IOWQ_LIMITS_SET	= BIT(12),
 };
 
+struct iou_ctx {};
+
 struct io_ring_ctx {
 	/* const or read-mostly hot data */
 	struct {
@@ -366,7 +368,7 @@ struct io_ring_ctx {
 		struct io_alloc_cache	rw_cache;
 		struct io_alloc_cache	cmd_cache;
 
-		int (*loop_step)(struct io_ring_ctx *ctx,
+		int (*loop_step)(struct iou_ctx *,
 				 struct iou_loop_params *);
 
 		/*
@@ -445,6 +447,9 @@ struct io_ring_ctx {
 
 	/* Stores zcrx object pointers of type struct io_zcrx_ifq */
 	struct xarray			zcrx_ctxs;
+
+	/* Used for accounting references on pages in registered buffers */
+	struct xarray		hpage_acct;
 
 	u32			pers_next;
 	struct xarray		personalities;
