@@ -412,15 +412,16 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 	struct cht_rt5677_private *ctx;
 	struct snd_soc_card *card;
 	const char *platform_name;
+	struct device *dev = &pdev->dev;
 	int ret = 0;
 	int i;
 
-	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
+	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
 
 	card = &ctx->card;
-	card->dev = &pdev->dev;
+	card->dev = dev;
 	card->owner = THIS_MODULE;
 	card->name = "cht-rt5677";
 	card->dai_link = cht_rt5677_dailink,
@@ -463,7 +464,7 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 		ret = devm_acpi_dev_add_driver_gpios(codec_dev,
 							 cht_rt5677_gpios);
 		if (ret)
-			dev_warn(&pdev->dev,
+			dev_warn(dev,
 				 "Unable to add GPIO mapping table: %d\n",
 				 ret);
 	}
@@ -471,7 +472,7 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 	ctx->gpio_spk_en1 = gpiod_get(codec_dev, "speaker-enable", GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->gpio_spk_en1)) {
 		ret = PTR_ERR(ctx->gpio_spk_en1);
-		return dev_err_probe(&pdev->dev, ret, "getting speaker enable GPIO\n");
+		return dev_err_probe(dev, ret, "getting speaker enable GPIO\n");
 	}
 
 	ctx->gpio_spk_en2 = gpiod_get(codec_dev, "speaker-enable2", GPIOD_OUT_LOW);
@@ -493,23 +494,23 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 
 	ret = snd_soc_fixup_dai_links_platform_name(card, platform_name);
 	if (ret) {
-		dev_err_probe(&pdev->dev, ret, "fixing up dai links platform name\n");
+		dev_err_probe(dev, ret, "fixing up dai links platform name\n");
 		goto out_put_hpen_gpio;
 	}
 
-	ctx->mclk = devm_clk_get(&pdev->dev, "pmc_plt_clk_3");
+	ctx->mclk = devm_clk_get(dev, "pmc_plt_clk_3");
 	if (IS_ERR(ctx->mclk)) {
 		ret = PTR_ERR(ctx->mclk);
-		dev_err_probe(&pdev->dev, ret, "getting MCLK from pmc_plt_clk_3\n");
+		dev_err_probe(dev, ret, "getting MCLK from pmc_plt_clk_3\n");
 		goto out_put_hpen_gpio;
 	}
 
 	snd_soc_card_set_drvdata(card, ctx);
 
 	/* register the soc card */
-	ret = devm_snd_soc_register_card(&pdev->dev, card);
+	ret = devm_snd_soc_register_card(dev, card);
 	if (ret) {
-		dev_err_probe(&pdev->dev, ret, "registering card\n");
+		dev_err_probe(dev, ret, "registering card\n");
 		goto out_put_hpen_gpio;
 	}
 
