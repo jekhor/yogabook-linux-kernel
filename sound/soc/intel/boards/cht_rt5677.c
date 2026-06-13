@@ -65,6 +65,7 @@ static int cht_rt5677_platform_clock_enable(struct snd_soc_card *card,
 				  CHT_PLAT_CLK_3_HZ, 48000 * 512);
 	if (ret < 0) {
 		dev_err(card->dev, "can't set codec pll: %d\n", ret);
+		clk_disable_unprepare(ctx->mclk);
 		return ret;
 	}
 
@@ -73,6 +74,7 @@ static int cht_rt5677_platform_clock_enable(struct snd_soc_card *card,
 				     48000 * 512, SND_SOC_CLOCK_IN);
 	if (ret < 0) {
 		dev_err(card->dev, "can't set codec sysclk: %d\n", ret);
+		clk_disable_unprepare(ctx->mclk);
 		return ret;
 	}
 
