@@ -13,6 +13,22 @@ static unsigned long cht_machine_id;
 
 #define CHT_SURFACE_MACH 1
 
+static struct snd_soc_acpi_mach cht_surface_mach = {
+	.id = "10EC5640",
+	.drv_name = "cht-bsw-rt5645",
+	.fw_filename = "intel/fw_sst_22a8.bin",
+	.board = "cht-bsw",
+	.sof_tplg_filename = "sof-cht-rt5645.tplg",
+};
+
+static struct snd_soc_acpi_mach cht_lenovo_yoga_tab3_x90_mach = {
+	.id = "10WM5102",
+	.drv_name = "bytcr_wm5102",
+	.fw_filename = "intel/fw_sst_22a8.bin",
+	.board = "bytcr_wm5102",
+	.sof_tplg_filename = "sof-cht-wm5102.tplg",
+};
+
 static int cht_surface_quirk_cb(const struct dmi_system_id *id)
 {
 	cht_machine_id = CHT_SURFACE_MACH;
@@ -28,14 +44,6 @@ static const struct dmi_system_id cht_table[] = {
 		},
 	},
 	{ }
-};
-
-static struct snd_soc_acpi_mach cht_surface_mach = {
-	.id = "10EC5640",
-	.drv_name = "cht-bsw-rt5645",
-	.fw_filename = "intel/fw_sst_22a8.bin",
-	.board = "cht-bsw",
-	.sof_tplg_filename = "sof-cht-rt5645.tplg",
 };
 
 static struct snd_soc_acpi_mach *cht_quirk(void *arg)
@@ -88,14 +96,6 @@ static const struct dmi_system_id lenovo_yoga_tab3_x90[] = {
 		},
 	},
 	{ }
-};
-
-static struct snd_soc_acpi_mach cht_lenovo_yoga_tab3_x90_mach = {
-	.id = "10WM5102",
-	.drv_name = "bytcr_wm5102",
-	.fw_filename = "intel/fw_sst_22a8.bin",
-	.board = "bytcr_wm5102",
-	.sof_tplg_filename = "sof-cht-wm5102.tplg",
 };
 
 static struct snd_soc_acpi_mach *lenovo_yt3_x90_quirk(void *arg)
