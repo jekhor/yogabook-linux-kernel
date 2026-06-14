@@ -233,17 +233,11 @@ static int cht_rt5677_codec_init(struct snd_soc_pcm_runtime *runtime)
 	struct cht_rt5677_private *ctx = snd_soc_card_get_drvdata(runtime->card);
 	int ret = 0;
 
-	/* Enable codec ASRC function for Stereo DAC/Stereo1 ADC/DMIC/I2S1.
-	 * The ASRC clock source is clk_i2s1_asrc.
-	 */
-	rt5677_sel_asrc_clk_src(component, RT5677_DA_STEREO_FILTER |
-			RT5677_AD_STEREO1_FILTER | RT5677_I2S1_SOURCE,
-			RT5677_CLK_SEL_I2S1_ASRC);
-	/* Enable codec ASRC function for Mono ADC L.
-	 * The ASRC clock source is clk_sys2_asrc.
-	 */
-	rt5677_sel_asrc_clk_src(component, RT5677_AD_MONO_L_FILTER,
-				RT5677_CLK_SEL_SYS2);
+	rt5677_sel_asrc_clk_src(component,
+				RT5677_DA_STEREO_FILTER |
+				RT5677_AD_STEREO1_FILTER |
+				RT5677_I2S1_SOURCE,
+				RT5677_CLK_SEL_I2S1_ASRC);
 
 	/*
 	 * The firmware might enable the clock at
