@@ -39,7 +39,6 @@
 #define CHT_CODEC_DAI		"rt5677-aif1"
 
 struct cht_rt5677_private {
-	struct snd_soc_card card;
 	struct snd_soc_jack jack;
 	struct clk *mclk;
 	struct gpio_desc *gpio_spk_en1;
@@ -415,7 +414,10 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 	if (!ctx)
 		return -ENOMEM;
 
-	card = &ctx->card;
+	card = devm_kzalloc(dev, sizeof(*card), GFP_KERNEL);
+	if (!card)
+		return -ENOMEM;
+
 	card->dev = dev;
 	card->owner = THIS_MODULE;
 	card->name = "cht-rt5677";
