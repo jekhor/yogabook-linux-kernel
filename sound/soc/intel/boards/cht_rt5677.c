@@ -396,7 +396,7 @@ static struct snd_soc_dai_link cht_rt5677_dailink[] = {
 static const struct acpi_gpio_params speaker_enable_gpio = { 2, 0, false };
 static const struct acpi_gpio_mapping cht_rt5677_gpios[] = {
 	{ "speaker-enable-gpios", &speaker_enable_gpio, 1 },
-	{ NULL }
+	{ }
 };
 
 static int snd_cht_rt5677_probe(struct platform_device *pdev)
