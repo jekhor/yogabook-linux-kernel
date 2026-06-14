@@ -40,7 +40,6 @@
 
 struct cht_rt5677_private {
 	struct snd_soc_card card;
-	char codec_name[SND_ACPI_I2C_ID_LEN];
 	struct snd_soc_jack jack;
 	struct clk *mclk;
 	struct gpio_desc *gpio_spk_en1;
@@ -399,6 +398,8 @@ static const struct acpi_gpio_mapping cht_rt5677_gpios[] = {
 	{ }
 };
 
+static char cht_rt5677_codec_name[SND_ACPI_I2C_ID_LEN];
+
 static int snd_cht_rt5677_probe(struct platform_device *pdev)
 {
 	struct snd_soc_acpi_mach *mach = dev_get_platdata(&pdev->dev);
@@ -429,12 +430,12 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 	card->controls = cht_rt5677_controls,
 	card->num_controls = ARRAY_SIZE(cht_rt5677_controls),
 
-	strscpy(ctx->codec_name, RT5677_I2C_DEFAULT);
+	strscpy(cht_rt5677_codec_name, RT5677_I2C_DEFAULT);
 
 	/* fixup codec name based on HID if ACPI node is present */
 	adev = acpi_dev_get_first_match_dev(mach->id, NULL, -1);
 	if (adev) {
-		snprintf(ctx->codec_name, sizeof(ctx->codec_name),
+		snprintf(cht_rt5677_codec_name, sizeof(cht_rt5677_codec_name),
 			 "i2c-%s", acpi_dev_name(adev));
 
 		acpi_dev_put(adev);
@@ -442,14 +443,14 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 			if (cht_rt5677_dailink[i].codecs->name &&
 			    !strcmp(cht_rt5677_dailink[i].codecs->name,
 				    RT5677_I2C_DEFAULT)) {
-				cht_rt5677_dailink[i].codecs->name = ctx->codec_name;
+				cht_rt5677_dailink[i].codecs->name = cht_rt5677_codec_name;
 				break;
 			}
 		}
 	}
 
 	struct device *codec_dev __free(put_device) =
-		bus_find_device_by_name(&i2c_bus_type, NULL, ctx->codec_name);
+		bus_find_device_by_name(&i2c_bus_type, NULL, cht_rt5677_codec_name);
 
 	if (!codec_dev)
 		return -EPROBE_DEFER;
@@ -483,7 +484,6 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 		goto out_put_spken2_gpio;
 	}
 
-	/* override platform name, if required */
 	platform_name = mach->mach_params.platform;
 
 	ret = snd_soc_fixup_dai_links_platform_name(card, platform_name);
@@ -501,7 +501,6 @@ static int snd_cht_rt5677_probe(struct platform_device *pdev)
 
 	snd_soc_card_set_drvdata(card, ctx);
 
-	/* register the soc card */
 	ret = devm_snd_soc_register_card(dev, card);
 	if (ret) {
 		dev_err_probe(dev, ret, "registering card\n");
@@ -524,20 +523,6 @@ static void snd_cht_rt5677_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct cht_rt5677_private *ctx = snd_soc_card_get_drvdata(card);
-	int i;
-
-	/*
-	 * Reset the codec name in the global dailink array back to the default
-	 * to avoid a use-after-free on driver rebind (unbind/bind):
-	 * ctx->codec_name is about to be freed together with ctx (devm), but
-	 * cht_rt5677_dailink[] is a static global that persists across binds.
-	 */
-	for (i = 0; i < ARRAY_SIZE(cht_rt5677_dailink); i++) {
-		if (cht_rt5677_dailink[i].codecs->name == ctx->codec_name) {
-			cht_rt5677_dailink[i].codecs->name = RT5677_I2C_DEFAULT;
-			break;
-		}
-	}
 
 	gpiod_put(ctx->gpio_hp_en);
 	gpiod_put(ctx->gpio_spk_en2);
