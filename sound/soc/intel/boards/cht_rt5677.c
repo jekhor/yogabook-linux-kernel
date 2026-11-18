@@ -94,7 +94,7 @@ static int cht_rt5677_platform_clock_control(struct snd_soc_dapm_widget *w,
 					     struct snd_kcontrol *kctl,
 					     int event)
 {
-	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
+	struct snd_soc_card *card = w->dapm->card;
 	struct snd_soc_dai *codec_dai;
 
 	codec_dai = snd_soc_card_get_codec_dai(card, CHT_CODEC_DAI);
@@ -112,7 +112,7 @@ static int cht_rt5677_platform_clock_control(struct snd_soc_dapm_widget *w,
 static int cht_rt5677_hp_event(struct snd_soc_dapm_widget *w,
 			       struct snd_kcontrol *kctl, int event)
 {
-	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
+	struct snd_soc_card *card = w->dapm->card;
 	struct cht_rt5677_private *ctx = snd_soc_card_get_drvdata(card);
 
 	return gpiod_set_value_cansleep(ctx->gpio_hp_en,
@@ -122,7 +122,7 @@ static int cht_rt5677_hp_event(struct snd_soc_dapm_widget *w,
 static int cht_rt5677_spk_event(struct snd_soc_dapm_widget *w,
 				struct snd_kcontrol *kctl, int event)
 {
-	struct snd_soc_card *card = snd_soc_dapm_to_card(w->dapm);
+	struct snd_soc_card *card = w->dapm->card;
 	struct cht_rt5677_private *ctx = snd_soc_card_get_drvdata(card);
 	bool enable = SND_SOC_DAPM_EVENT_ON(event);
 	int rollback_ret;
