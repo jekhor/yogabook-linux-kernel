@@ -7,6 +7,7 @@
 #include <linux/device.h>
 #include <linux/i2c.h>
 #include <linux/mei_cl_bus.h>
+#include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/property.h>
@@ -17,6 +18,8 @@
 #include <media/v4l2-fwnode.h>
 
 #define ADEV_DEV(adev) ACPI_PTR(&((adev)->dev))
+
+#define PCI_DEVICE_ID_INTEL_ATOMISP_CHT	0x22b8
 
 /*
  * 92335fcf-3203-4472-af93-7b4453ac29da
@@ -47,6 +50,11 @@
  *
  * Please keep the list sorted by ACPI HID.
  */
+static const u16 atomisp_cht_pci_ids[] = {
+	PCI_DEVICE_ID_INTEL_ATOMISP_CHT,
+	0
+};
+
 static const struct ipu_sensor_config ipu_supported_sensors[] = {
 	/* Himax HM11B1 */
 	IPU_SENSOR_CONFIG("HIMX11B1", 1, 384000000),
@@ -62,6 +70,8 @@ static const struct ipu_sensor_config ipu_supported_sensors[] = {
 	IPU_SENSOR_CONFIG("INT33F0", 1, 384000000),
 	/* Omnivision OV2740 */
 	IPU_SENSOR_CONFIG("INT3474", 1, 180000000),
+	/* Omnivision OV8858 */
+	IPU_SENSOR_CONFIG("INT3477", 1, 360000000),
 	/* Omnivision OV5670 */
 	IPU_SENSOR_CONFIG("INT3479", 1, 422400000),
 	/* Omnivision OV8865 */
@@ -88,6 +98,13 @@ static const struct ipu_sensor_config ipu_supported_sensors[] = {
 	IPU_SENSOR_CONFIG("OVTIDB10", 1, 560000000),
 	/* Omnivision OV2680 */
 	IPU_SENSOR_CONFIG("OVTI2680", 1, 331200000),
+
+	/* Omnivision OV2740 */
+	IPU_SENSOR_CONFIG_MATCH_FL("OVTI2740", atomisp_cht_pci_ids, 0,
+				   1, 288000000),
+	IPU_SENSOR_CONFIG("OVTI2740", 1, 360000000),
+	/* Omnivision OV5675 */
+	IPU_SENSOR_CONFIG("OVTI5675", 1, 450000000),
 	/* Omnivision OV8856 */
 	IPU_SENSOR_CONFIG("OVTI8856", 3, 180000000, 360000000, 720000000),
 	/* Toshiba T4KA3 */
@@ -731,8 +748,24 @@ err_put_adev:
 	return ret;
 }
 
+static bool ipu_bridge_config_matches(const struct ipu_sensor_config *cfg,
+				      struct ipu_bridge *bridge)
+{
+	const u16 *id;
+
+	if (!cfg->pci_ids)
+		return true;
+
+	for (id = cfg->pci_ids; *id; id++)
+		if (*id == bridge->pci_id)
+			return true;
+
+	return false;
+}
+
 static int ipu_bridge_connect_sensors(struct ipu_bridge *bridge)
 {
+	const char *done_hid = NULL;
 	unsigned int i;
 	int ret;
 
@@ -740,9 +773,22 @@ static int ipu_bridge_connect_sensors(struct ipu_bridge *bridge)
 		const struct ipu_sensor_config *cfg =
 			&ipu_supported_sensors[i];
 
+		/*
+		 * Entries for one HID are adjacent, IPU-specific ones first,
+		 * so the generic entry is skipped once a specific one has
+		 * matched and the sensor is not connected twice.
+		 */
+		if (done_hid && !strcmp(cfg->hid, done_hid))
+			continue;
+
+		if (!ipu_bridge_config_matches(cfg, bridge))
+			continue;
+
 		ret = ipu_bridge_connect_sensor(cfg, bridge);
 		if (ret)
 			goto err_unregister_sensors;
+
+		done_hid = cfg->hid;
 	}
 
 	return 0;
@@ -826,6 +872,7 @@ int ipu_bridge_init(struct device *dev,
 		sizeof(bridge->ipu_node_name));
 	bridge->ipu_hid_node.name = bridge->ipu_node_name;
 	bridge->dev = dev;
+	bridge->pci_id = dev_is_pci(dev) ? to_pci_dev(dev)->device : 0;
 	bridge->parse_sensor_fwnode = parse_sensor_fwnode;
 
 	ret = software_node_register(&bridge->ipu_hid_node);

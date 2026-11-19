@@ -28,6 +28,8 @@
 #define BQ25896_ID			0
 
 #define PUMP_EXPRESS_START_DELAY	(5 * HZ)
+#define PUMP_EXPRESS_RETRY_DELAY	(10 * HZ)
+#define PUMP_EXPRESS_MAX_RETRIES	3
 #define PUMP_EXPRESS_MAX_TRIES		6
 #define PUMP_EXPRESS_VBUS_MARGIN_uV	1000000
 
@@ -117,6 +119,7 @@ struct bq25890_device {
 	struct notifier_block usb_nb;
 	struct work_struct usb_work;
 	struct delayed_work pump_express_work;
+	unsigned int pump_express_retries;
 	unsigned long usb_event;
 
 	struct regmap *rmap;
@@ -1058,9 +1061,39 @@ static void bq25890_pump_express_work(struct work_struct *data)
 	struct bq25890_device *bq =
 		container_of(data, struct bq25890_device, pump_express_work.work);
 	union power_supply_propval value;
+	struct bq25890_state state;
 	int voltage, i, ret;
 
 	dev_dbg(bq->dev, "Start to request input voltage increasing\n");
+
+	/*
+	 * Pump Express requires a stable valid input. Avoid starting voltage
+	 * negotiation when the charger does not report power-good.
+	 */
+
+	mutex_lock(&bq->lock);
+	ret = bq25890_get_chip_state(bq, &state);
+	mutex_unlock(&bq->lock);
+
+	if (ret < 0 || !state.online || state.hiz) {
+		if (bq->pump_express_retries < PUMP_EXPRESS_MAX_RETRIES) {
+			bq->pump_express_retries++;
+			dev_warn(bq->dev,
+				 "Input not stable, retrying hi-voltage negotiation (%u/%u)\n",
+				 bq->pump_express_retries,
+				 PUMP_EXPRESS_MAX_RETRIES);
+			queue_delayed_work(system_power_efficient_wq,
+					   &bq->pump_express_work,
+					   PUMP_EXPRESS_RETRY_DELAY);
+		} else {
+			dev_warn(bq->dev,
+				 "Input remained unstable, giving up hi-voltage negotiation\n");
+			bq->pump_express_retries = 0;
+		}
+		return;
+	}
+
+	bq->pump_express_retries = 0;
 
 	/* If there is a second charger put in Hi-Z mode */
 	if (bq->secondary_chrg) {
@@ -1104,7 +1137,7 @@ static void bq25890_pump_express_work(struct work_struct *data)
 		power_supply_set_property(bq->secondary_chrg, POWER_SUPPLY_PROP_ONLINE, &value);
 	}
 
-	dev_info(bq->dev, "Hi-voltage charging requested, input voltage is %d mV\n",
+	dev_info(bq->dev, "Hi-voltage charging requested, input voltage is %d uV\n",
 		 voltage);
 
 	power_supply_changed(bq->charger);

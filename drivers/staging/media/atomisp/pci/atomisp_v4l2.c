@@ -800,6 +800,17 @@ static int atomisp_subdev_probe(struct atomisp_device *isp)
 	return atomisp_csi_lane_config(isp);
 }
 
+static void atomisp_notifier_cleanup(struct atomisp_device *isp)
+{
+	v4l2_async_nf_cleanup(&isp->notifier);
+}
+
+static void atomisp_notifier_unregister(struct atomisp_device *isp)
+{
+	v4l2_async_nf_unregister(&isp->notifier);
+	atomisp_notifier_cleanup(isp);
+}
+
 static void atomisp_unregister_entities(struct atomisp_device *isp)
 {
 	unsigned int i;
@@ -872,6 +883,7 @@ subdev_register_failed:
 	for (i = 0; i < ATOMISP_CAMERA_NR_PORTS; i++)
 		atomisp_mipi_csi2_unregister_entities(&isp->csi2_port[i]);
 csi_and_subdev_probe_failed:
+	atomisp_notifier_cleanup(isp);
 	v4l2_device_unregister(&isp->v4l2_dev);
 v4l2_device_failed:
 	media_device_unregister(&isp->media_dev);
@@ -1448,6 +1460,7 @@ error_free_irq:
 	devm_free_irq(&pdev->dev, pdev->irq, isp);
 error_unregister_entities:
 	hmm_cleanup();
+	atomisp_notifier_cleanup(isp);
 	atomisp_unregister_entities(isp);
 error_uninitialize_modules:
 	atomisp_uninitialize_modules(isp);
@@ -1474,6 +1487,7 @@ static void atomisp_pci_remove(struct pci_dev *pdev)
 	devm_free_irq(&pdev->dev, pdev->irq, isp);
 	hmm_cleanup();
 
+	atomisp_notifier_unregister(isp);
 	atomisp_unregister_entities(isp);
 	atomisp_uninitialize_modules(isp);
 	atomisp_msi_irq_uninit(isp);
