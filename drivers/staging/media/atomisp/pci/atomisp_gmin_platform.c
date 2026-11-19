@@ -594,8 +594,7 @@ static int gmin_subdev_add(struct gmin_subdev *gs)
 	switch (pmic_id) {
 	case PMIC_REGULATOR:
 		gs->v1p8_reg = regulator_get(dev, "V1P8SX");
-//		gs->v2p8_reg = regulator_get(dev, "V2P8SX");
-		gs->v2p8_vcm_reg = regulator_get(dev, "VPROG4B");
+		gs->v2p8_reg = regulator_get(dev, "VPROG4B");
 
 		gs->v1p2_reg = regulator_get(dev, "V1P2SX");
 //		gs->v1p2_reg = regulator_get(dev, "V1P2A");
